@@ -1,14 +1,15 @@
 '''
 Author: Chen Shi
 Date: 2023-11-23 11:15:01
-Description: define disk class
+Description: Disk class
 '''
 
 
 class Disk:
     # 寻道时间，数据传输时间，调度队列长度
     # TODO 这里 seek time 被设置为固定的
-    def __init__(self, seek_time = 10, xfer_time = 0.1, queue_len = 8):
+    def __init__(self, seek_time = 10, xfer_time = 0.1, queue_len = 8, 
+                 num_tracks = 100, blocks_per_track = 100):
         # 单位为 ms 
         self.seek_time = seek_time
         self.xfer_time = xfer_time
@@ -22,17 +23,19 @@ class Disk:
 
         # disk specs
         # TODO main.py 中配置
-        self.num_tracks = 100
-        self.blocks_per_track = 100
-        self.blocks_per_disk = self.num_tracks * self.blocks_per_disk
+        self.num_tracks = num_tracks
+        self.blocks_per_track = blocks_per_track
+        self.blocks_per_disk = self.num_tracks * self.blocks_per_track
 
         # disk stats 统计
-        # 这几个啥意思
         self.count_IO = 0
         self.count_seq = 0
         self.countNseq = 0
         self.count_rand = 0
         self.util_time = 0
+
+        # 是否活跃磁盘
+        self.active = True
 
     # 获取统计信息
     def get_stats(self):

@@ -4,23 +4,24 @@ Date: 2023-11-27 16:31:32
 Description: Raid class
 '''
 
+
 from common.cerror import Cerror
-from common.cutils import convert
-from disk import Disk
+from src.disk import Disk
+from src.node import Node
 
-# minimum unit of transfer to RAID
-# TODO main.py 中配置
-BLOCKSIZE = 4096
 
-# 只模拟 raid5 和 raid0
+# 只模拟 raid5
 class Raid:
     # constructor
-    def __init__(self, chunk_size = 4096, num_disks = 6, raid_level = 5, timing = False, 
-                 reverse = False, solve = False, raid5_type = 'LS'):
+    def __init__(self, block_size = 4096, chunk_size = 4096, num_disks = 4, 
+                 raid_level = 5, raid5_type = 'LS', timing = False, 
+                 reverse = False, solve = False):
         self.print_physical = None
+        # block size
+        self.block_size = block_size
         # chunk size
-        self.chunk_size = chunk_size // BLOCKSIZE
-        # number of disks
+        self.chunk_size = chunk_size // self.block_size
+        # 当前磁盘个数
         self.num_disks = num_disks
         # raid level (only 5)
         self.raid_level = raid_level
@@ -33,9 +34,13 @@ class Raid:
         # raid-5 LS/LA
         self.raid5_type = raid5_type
 
-        if (chunk_size % BLOCKSIZE) != 0:
-            Cerror(f'chunk 大小({self.chunk_size})必须是 block size ({BLOCKSIZE})的倍数:
-                   ({self.chunk_size % BLOCKSIZE})')
+        # TODO Raid 中维护一张动态二维数组的表，用来存储数据块的一些信息
+        # 存储数据块的热度、是否修改标志 等
+        self.block_table = []
+
+
+        if (chunk_size % self.block_size) != 0:
+            Cerror(f'chunk 大小({self.chunk_size})必须是 block size ({self.block_size})的倍数: ({self.chunk_size % self.block_size})')
         
         # 只模拟 raid5
         if self.raid_level == 5:
@@ -46,6 +51,53 @@ class Raid:
         self.disks = []
         for i in range(self.num_disks):
             self.disks.append(Disk())
+
+        # 初始化 block table 
+
+
+    def init_block_table(self):
+        # 一个 disk 默认 100 个 track，每个 track 有 100 个 block
+        # row, 100 * 100 行
+        # TODO 需要修改
+        for r in range(10000):
+            b_list = []
+            for c in range(self.num_disks):
+                b_node = Node(r, c)
+
+
+    '''
+    name: add_disks
+    msg: 添加磁盘。注意，添加磁盘前需要执行一些操作，在 ReorgHandler 中
+    param {*} self
+    param {*} add_disk_num: 新增磁盘的个数
+    return {*}
+    '''    
+    def add_disks(self, add_disk_num = 2):
+        if (add_disk_num == 0):
+            return
+        self.num_disks += add_disk_num
+        for i in range(add_disk_num):
+            self.disks.append(Disk())
+
+
+    '''
+    name: del_disks
+    msg: 删除磁盘。注意删除前需要执行一些操作，在 ReorgHandler 中
+    param {*} self
+    param {*} del_disk_num: 删除磁盘的个数
+    return {*}
+    '''    
+    def del_disks(self, del_disk_num = 2):
+        if (del_disk_num == 0):
+            return
+        if (del_disk_num >= self.num_disks):
+            Cerror('the number of disks to be deleted needs to be smaller than current disks')
+        # valid
+        self.num_disks -= del_disk_num
+        for i in range(del_disk_num):
+            # TODO 在此之前需要数据迁移
+            # 在 ReorgHandler 中进行
+            self.disks.pop()
 
 
     '''
@@ -62,8 +114,7 @@ class Raid:
             # res = (exp1) if (condition) else (exp2)
             util_ratio = (100.0 * float(stats[4]) / total_time) if total_time > 0.0 else 0.0
 
-            print(f'磁盘{i}- 占用率: {util_ratio:3.2f}  I/Os: {stats[0]:5d} 
-                  (顺序次数: {stats[1]} 同一个磁道: {stats[2]} 随机次数: {stats[3]})')
+            print(f'磁盘{i}- 占用率: {util_ratio:3.2f}  I/Os: {stats[0]:5d} (顺序次数: {stats[1]} 同一个磁道: {stats[2]} 随机次数: {stats[3]})')
 
 
     '''
@@ -80,9 +131,9 @@ class Raid:
         if not self.timing:
             if self.solve or not self.reverse:
                 if is_write:
-                    print(f'logical write addr: {addr} size: {size * BLOCKSIZE}')
+                    print(f'logical write addr: {addr} size: {size * self.block_size}')
                 else:
-                    print(f'logical read addr: {addr} size: {size * BLOCKSIZE}')
+                    print(f'logical read addr: {addr} size: {size * self.block_size}')
                 if not self.solve:
                     print('logical read/write?')
             else:
@@ -288,7 +339,7 @@ class Raid:
                 # for loop end
 
         # for all cases, print this for pretty-ness in mapping mode
-        if self.timing == False and self.printPhysical:
+        if self.timing == False and self.print_physical:
             print('')
 
 # end Raid class

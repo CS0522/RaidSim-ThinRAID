@@ -1,0 +1,55 @@
+logical read addr: 16 size: 4096
+read [disk 0, offset 5] 
+
+logical write addr: 8 size: 4096
+read [disk 0, offset 2] 
+read [disk 1, offset 2] 
+
+write [disk 0, offset 2] 
+write [disk 1, offset 2] 
+
+
+logical write addr: 10 size: 4096
+read [disk 2, offset 3] 
+read [disk 0, offset 3] 
+
+write [disk 2, offset 3] 
+write [disk 0, offset 3] 
+
+
+logical write addr: 15 size: 4096
+read [disk 3, offset 5] 
+read [disk 2, offset 5] 
+
+write [disk 3, offset 5] 
+write [disk 2, offset 5] 
+
+
+logical read addr: 9 size: 4096
+read [disk 1, offset 3] 
+
+logical read addr: 18 size: 4096
+read [disk 2, offset 6] 
+
+logical read addr: 5 size: 4096
+read [disk 1, offset 1] 
+
+logical write addr: 12 size: 4096
+read [disk 0, offset 4] 
+read [disk 3, offset 4] 
+
+write [disk 0, offset 4] 
+write [disk 3, offset 4] 
+
+
+logical read addr: 18 size: 4096
+read [disk 2, offset 6] 
+
+logical read addr: 16 size: 4096
+read [disk 0, offset 5] 
+
+磁盘0- 占用率: 100.00  I/Os:     8 (顺序次数: 3 同一个磁道: 4 随机次数: 1)
+磁盘1- 占用率: 97.20  I/Os:     4 (顺序次数: 1 同一个磁道: 2 随机次数: 1)
+磁盘2- 占用率: 97.20  I/Os:     6 (顺序次数: 1 同一个磁道: 4 随机次数: 1)
+磁盘3- 占用率: 95.33  I/Os:     4 (顺序次数: 1 同一个磁道: 2 随机次数: 1)
+Eplased time: 10.7 ms
