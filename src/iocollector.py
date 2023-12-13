@@ -15,10 +15,13 @@ class IOCollector:
         self.reqs = []
         # for predictor
         self.predicts = []
+        # for reorg handler
+        self.hots = []
 
         # read trace
         self.read_io(file_name)
         self.read_predicts(file_name)
+        self.read_hots(file_name)
 
     '''
     name: read_io
@@ -62,7 +65,7 @@ class IOCollector:
                 # append into list
                 self.reqs.append(ioreq)
 
-    # TODO
+    # TODO 读取 trace 文件并创建 predicts 列表
     def read_predicts(self, file_name = filename):
         with open(file_name) as trace_file:
             # csv.reader
@@ -96,6 +99,13 @@ class IOCollector:
                 row_count += 1
             # print(self.predicts)
 
+    
+    # TODO 读取 trace 文件并得到数据块热度
+    # hots 为具有两列的二维 list
+    # [DiskNumber, Offset]
+    def read_hots(self, file_name = filename):
+        pass
+
 
     # get io reqs queue
     def get_reqs(self):
@@ -103,6 +113,9 @@ class IOCollector:
     
     def get_predicts(self):
         return self.predicts
+    
+    def get_hots(self):
+        return self.hots
 
 
 if __name__ == "__main__":

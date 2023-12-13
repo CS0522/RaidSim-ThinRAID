@@ -14,7 +14,7 @@ seed            =   0
 num_disks       =   4
 block_size      =   4096
 chunk_size      =   4096
-num_reqs        =   10
+num_reqs        =   20
 req_size        =   4096
 # 'rand' or 'seq'
 workload        =   'rand'
@@ -25,7 +25,6 @@ raid_level      =   5
 # 'LS' or 'LA'
 raid5_type      =   'LS'
 timing          =   False
-reverse         =   False
 solve           =   True
 
 
@@ -43,7 +42,7 @@ def main():
     sys.stdout = open("./output/res.txt", "w", encoding='utf-8')
 
     ctrl_ = Controller(seed, num_disks, block_size, chunk_size, num_reqs, req_size, workload,
-                       write_frac, rand_range, raid_level, raid5_type, timing, reverse, solve)
+                       write_frac, rand_range, raid_level, raid5_type, timing, solve)
     
     sys.stdout = save_stdout
 

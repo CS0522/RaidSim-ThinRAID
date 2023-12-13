@@ -15,8 +15,8 @@ class Raid:
     # constructor
     def __init__(self, block_size = 4096, chunk_size = 4096, num_disks = 4, 
                  raid_level = 5, raid5_type = 'LS', timing = False, 
-                 reverse = False, solve = False):
-        self.print_physical = None
+                solve = True):
+        self.print_physical = True
         # block size
         self.block_size = block_size
         # chunk size
@@ -25,16 +25,13 @@ class Raid:
         self.num_disks = num_disks
         # raid level (only 5)
         self.raid_level = raid_level
-        # timing/atomic. timing 会有新的事件调度进来
+        
         self.timing = timing
-        # TODO 什么作用
-        self.reverse = reverse
-        # TODO 什么作用
         self.solve = solve
         # raid-5 LS/LA
         self.raid5_type = raid5_type
 
-        # TODO Raid 中维护一张动态二维数组的表，用来存储数据块的一些信息
+        # Raid 中维护一张动态二维数组的表，用来存储数据块的一些信息
         # 存储数据块的热度、是否修改标志 等
         self.block_table = []
 
@@ -53,16 +50,29 @@ class Raid:
             self.disks.append(Disk())
 
         # 初始化 block table 
+        self.init_block_table()
 
 
+    '''
+    name: init_block_table
+    msg: 初始化 block table
+    param {*} self
+    return {*}
+    '''
     def init_block_table(self):
         # 一个 disk 默认 100 个 track，每个 track 有 100 个 block
         # row, 100 * 100 行
         # TODO 需要修改
         for r in range(10000):
             b_list = []
+            # col, num_disks 列
             for c in range(self.num_disks):
                 b_node = Node(r, c)
+                b_list.append(b_node)
+            # 把每行的 b_list 添加到 block table
+            self.block_table.append(b_list)
+        # print
+        # print(self.block_table)
 
 
     '''
@@ -95,7 +105,7 @@ class Raid:
         # valid
         self.num_disks -= del_disk_num
         for i in range(del_disk_num):
-            # TODO 在此之前需要数据迁移
+            # 在此之前需要数据迁移
             # 在 ReorgHandler 中进行
             self.disks.pop()
 
@@ -129,7 +139,7 @@ class Raid:
     def enqueue(self, addr, size, is_write):
         # print logical operations
         if not self.timing:
-            if self.solve or not self.reverse:
+            if self.solve:
                 if is_write:
                     print(f'logical write addr: {addr} size: {size * self.block_size}')
                 else:
@@ -140,10 +150,11 @@ class Raid:
                 print('physical operation?')
 
         # print physical operations
-        if not self.timing and (self.solve or (self.reverse == True)):
-            self.print_physical = True
-        else:
-            self.print_physical = False
+        # 感觉不需要单独设置 print physical
+        # if not self.timing and self.solve:
+        #     self.print_physical = True
+        # else:
+        #     self.print_physical = False
 
         if self.raid_level == 5:
             # raid5 级别下处理 I/O 请求
@@ -178,6 +189,9 @@ class Raid:
         if self.print_physical:
             # write req
             if r_or_w == 'w':
+                # 如果要写入的数据块是经过迁移的，修改 modified
+                if (self.block_table[offset][disk_index].remap == True):
+                    self.block_table[offset][disk_index].set_modified(True)
                 print(f'write [disk {disk_index}, offset {offset}] ')
             # read req
             elif r_or_w == 'r':
@@ -272,7 +286,14 @@ class Raid:
             Cerror('Error: no such RAID layout')
         
         assert(disk != pdisk)
-        return disk, pdisk, doff
+        # 判断是否存在重新映射
+        if (self.block_table[doff][disk].remap == True):
+            # 需要重新映射到新的磁盘上
+            remap_disk = self.block_table[doff][disk].remap_index['col']
+            remap_doff = self.block_table[doff][disk].remap_index['row']
+            return remap_disk, pdisk, remap_doff
+        else:
+            return disk, pdisk, doff
     
 
     def block_mapping_raid5(self, b_num):
@@ -317,7 +338,7 @@ class Raid:
             # 开始的块
             start_block = addr
             # 结束的块
-            # TODO 原先代码中无此行
+            # 原先代码中无此行
             end_block = start_block + remain_blocks
             # 1 stripe at a time
             for curr_stripe in range(begin_stripe, end_stripe + 1):

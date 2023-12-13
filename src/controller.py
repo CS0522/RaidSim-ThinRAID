@@ -30,7 +30,7 @@ class Controller:
     '''
     def __init__(self, seed = 0, num_disks = 6, block_size = 4096, chunk_size = 4096, num_reqs = 10, 
                  req_size = 4096, workload = 'rand', write_frac = 0.5, rand_range = 10000, 
-                 raid_level = 5, raid5_type = 'LS', timing = False, reverse = False, solve = False):
+                 raid_level = 5, raid5_type = 'LS', timing = False, solve = False):
         self.seed = seed
         self.num_disks = num_disks
         self.block_size = block_size
@@ -43,7 +43,6 @@ class Controller:
         self.raid_level = raid_level
         self.raid5_type = raid5_type
         self.timing = timing
-        self.reverse = reverse
         self.solve = solve
 
         # 检查参数并格式化
@@ -52,7 +51,7 @@ class Controller:
         # Raid 实例
         self.raid_instant = Raid(self.block_size, self.chunk_size, self.num_disks, 
                                  self.raid_level, self.raid5_type, 
-                                 self.timing, self.reverse, self.solve)
+                                 self.timing, self.solve)
         
         # 生成请求
         self.gen_reqs()
@@ -109,7 +108,6 @@ class Controller:
         print('ARG random range',   self.rand_range)
         print('ARG raid level',     self.raid_level)
         print('ARG raid5 layout',   self.raid5_type)
-        print('ARG reverse',        self.reverse)
         print('ARG timing',         self.timing)
 
     

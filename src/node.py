@@ -17,6 +17,10 @@ class Node:
         self.curr_index = {'row': curr_row, 'col': curr_col}
         # 新的映射到 block table 的位置
         self.remap_index = {'row': -1, 'col': -1}
+        # 是否是被映射的（是否具有原数据块）
+        self.has_old = False
+        # 如果重新映射，原先的 index
+        self.old_index = {'row': -1, 'col': -1}
 
     def set_hot(self, new_val):
         self.hot = new_val
@@ -35,5 +39,12 @@ class Node:
         self.remap_index['row'] = new_row
         self.remap_index['col'] = new_col
 
+    def set_has_old(self, new_val):
+        self.has_old = new_val
+
+    def set_old_index(self, old_row, old_col):
+        self.old_index['row'] = old_row
+        self.old_index['col'] = old_col
+
     def get_info(self):
-        return self.hot, self.modified, self.remap, self.remap_index
+        return self.hot, self.modified, self.remap, self.curr_index, self.remap_index, self.has_old, self.old_index
