@@ -1,0 +1,36 @@
+# unit: ms; Byte
+# default configs
+seed: 0
+num_disks: 4
+block_size: 4096
+chunk_size: 4096
+num_reqs: 20
+req_size: 4096
+# 'rand' or 'seq'
+workload: 'rand'
+# 0.0 ~ 1.0
+write_frac: 0.0
+rand_range: 20
+raid_level: 5
+# 'LS' or 'LA'
+raid5_type: 'LS'
+timing: False
+solve: True
+
+# Disk
+num_tracks: 100
+blocks_per_track: 100
+seek_time: 10
+xfer_time: 0.1
+queue_len: 8
+
+# trace file path
+raw_file: "./trace/hm_min.csv"
+process_file: "./trace/test.csv"
+
+# predictor
+t_up: 15
+t_down: 5
+n_step: 2
+
+### DEFAULT CONFIGS ###

@@ -7,21 +7,24 @@ Description: Predictor class
 
 # from src.iocollector import IOCollector
 from src.armax import armax_func
+from src.config import Config
 
 class Predictor:
     # io requests queue
     predicts = []
 
-    def __init__(self, predicts, curr_disk_num, t_up, t_down, n_step = 2):
+    def __init__(self, config:Config, predicts, curr_disk_num, t_up, t_down, n_step = 2):
         # the predict array
         self.predicts = predicts
+        # number of init disks
+        self.num_disks = config.get_num_disks()
         # the number of disks in current epoch
         self.curr_disk_num = curr_disk_num
         # the limited average response time
         self.t_up = t_up
         self.t_down = t_down
         # N_step
-        self.n_step = 2
+        self.n_step = n_step
         # the predicted arrival rate in next epoch lamda
         self.lamda = None
         # average service time
@@ -47,18 +50,25 @@ class Predictor:
     '''
     def get_predicted_arrival_rate(self):
         # 预测下一个时间间隔的 lamda
-        self.lamda = armax_func(self.predicts, 1)
+        # self.lamda = armax_func(self.predicts, 1)
+        self.lamda = 10
         return self.lamda
 
 
     def get_next_disk_num(self):
         t = self.curr_disk_num / (self.miu * self.curr_disk_num) - self.lamda
+        print(t)
         while t > self.t_up:
             self.next_disk_num = self.next_disk_num + self.n_step
-            t = self.next_disk_num / (self.miu * self.next_disk_num) - self.lamda
+            t = self.next_disk_num / (self.miu * self.next_disk_num - self.lamda)
+            print(t)
         while t < self.t_down:
             self.next_disk_num = self.next_disk_num - self.n_step
-            t = self.next_disk_num / (self.miu * self.next_disk_num) - self.lamda
+            # 刚开始创建的是最小的 RAID，所以要保证最少磁盘个数至少是 4
+            if (self.next_disk_num < self.num_disks):
+                self.next_disk_num = self.num_disks
+                break
+            t = self.next_disk_num / (self.miu * self.next_disk_num - self.lamda)
         return self.next_disk_num
     
     def get_power_on_disk_num(self):

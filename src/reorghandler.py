@@ -9,9 +9,10 @@ Description: ReorgHandler class. Implement ThinRAID's ES Algorithm
 import copy
 import random
 from src.node import Node
+from src.raid import Raid
 
 class ReorgHandler:
-    def __init__(self, raid, power_on_disk_num, hots):
+    def __init__(self, raid:Raid, power_on_disk_num, hots):
         # a RAID instant
         # 直接对 raid 实例进行修改
         self.raid_instant = raid
@@ -53,6 +54,18 @@ class ReorgHandler:
 
 
     '''
+    name: update_hot_blocks
+    msg: 更新磁盘块的热度值
+    param {*} self
+    param {*} new_hots: new hots list
+    return {*}
+    '''
+    def update_hot_blocks(self, new_hots):
+        self.hots = new_hots
+        self.set_hot_blocks()
+
+
+    '''
     name: cal_threshold
     msg: 计算阈值 T
     param {*} self
@@ -70,7 +83,7 @@ class ReorgHandler:
         for row in self.raid_instant.block_table:
             # 每列求 sum
             for col in range(self.curr_disk_num):
-                disk_hots[col] += row[col]
+                disk_hots[col] += row[col].hot
         # disk_hots 得到每个磁盘的热度
         # sum{Dj}
         disk_hots_sum = 0

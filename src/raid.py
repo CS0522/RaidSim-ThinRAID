@@ -8,36 +8,34 @@ Description: Raid class
 from common.cerror import Cerror
 from src.disk import Disk
 from src.node import Node
+from src.config import Config
 
 
 # 只模拟 raid5
 class Raid:
     # constructor
-    def __init__(self, block_size = 4096, chunk_size = 4096, num_disks = 4, 
-                 raid_level = 5, raid5_type = 'LS', timing = False, 
-                solve = True):
+    def __init__(self, config:Config):
         self.print_physical = True
         # block size
-        self.block_size = block_size
+        self.block_size = config.get_block_size()
         # chunk size
-        self.chunk_size = chunk_size // self.block_size
+        self.chunk_size = config.get_chunk_size()
+        if (self.chunk_size % self.block_size) != 0:
+            Cerror(f'chunk 大小({self.chunk_size})必须是 block size ({self.block_size})的倍数: ({self.chunk_size % self.block_size})')
+        self.chunk_size = self.chunk_size // self.block_size
         # 当前磁盘个数
-        self.num_disks = num_disks
+        self.num_disks = config.get_num_disks()
         # raid level (only 5)
-        self.raid_level = raid_level
+        self.raid_level = config.get_raid_level()
         
-        self.timing = timing
-        self.solve = solve
+        self.timing = config.get_timing()
+        self.solve = config.get_solve()
         # raid-5 LS/LA
-        self.raid5_type = raid5_type
+        self.raid5_type = config.get_raid5_type()
 
         # Raid 中维护一张动态二维数组的表，用来存储数据块的一些信息
         # 存储数据块的热度、是否修改标志 等
         self.block_table = []
-
-
-        if (chunk_size % self.block_size) != 0:
-            Cerror(f'chunk 大小({self.chunk_size})必须是 block size ({self.block_size})的倍数: ({self.chunk_size % self.block_size})')
         
         # 只模拟 raid5
         if self.raid_level == 5:
@@ -47,7 +45,8 @@ class Raid:
         # 添加磁盘
         self.disks = []
         for i in range(self.num_disks):
-            self.disks.append(Disk())
+            self.disks.append(Disk(config.get_seek_time(), config.get_xfer_time(), config.get_queue_len(), 
+                 config.get_num_tracks(), config.get_blocks_per_track()))
 
         # 初始化 block table 
         self.init_block_table()

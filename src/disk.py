@@ -22,7 +22,6 @@ class Disk:
         self.queue = []
 
         # disk specs
-        # TODO main.py 中配置
         self.num_tracks = num_tracks
         self.blocks_per_track = blocks_per_track
         self.blocks_per_disk = self.num_tracks * self.blocks_per_track

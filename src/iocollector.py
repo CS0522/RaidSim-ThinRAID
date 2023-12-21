@@ -5,109 +5,172 @@ Description: IOCollector class
 '''
 
 import csv
-from ioreq import IOReq
+from src.ioreq import IOReq
+import random
 
-filename = "./trace/hm_min.csv"
+raw_file = "./trace/hm_min.csv"
+process_file = "./trace/hm_processed.csv"
 
 class IOCollector:
-    def __init__(self, file_name = filename):
+    def __init__(self, num_disks, raw_file = raw_file, process_file = process_file):
+        self.raw_file = raw_file
+        self.process_file = process_file
+        # 当前磁盘块的数量
+        self.num_disks = num_disks
         # requests queue
         self.reqs = []
         # for predictor
         self.predicts = []
         # for reorg handler
         self.hots = []
+        # TODO 手动时间间隔
+        self.time_interval = 1000000
+
+        # process raw trace file 
+        self.process_trace_file()
 
         # read trace
-        self.read_io(file_name)
-        self.read_predicts(file_name)
-        self.read_hots(file_name)
+        self.read_io(self.process_file)
+        # 时间戳开始时间点，时间间隔个数
+        self.timestamp_start, self.interval_count = self.read_predicts(self.process_file)
+        # self.read_hots(self.timestamp_start, self.time_interval, self.interval_count)
+
+
+    '''
+    name: process_trace_file
+    msg: 处理原始 trace 文件，得到修改的 trace 文件
+    param {*} self
+    return {*}
+    '''
+    def process_trace_file(self):
+        # 读取原 trace 文件并修改，然后创建一个新 trace 文件
+        with open(self.raw_file, 'r') as readfile:
+            with open(self.process_file, 'w') as writefile:
+                reader = csv.reader(readfile)
+                writer = csv.writer(writefile)
+                for row in reader:
+                    # 按行读取
+                    # 对 trace 内文件进行处理
+                    # row[0]: 时间戳，FILETIME 转换为毫秒级时间戳
+                    c0 = ((int(row[0]) / 10000000) - 11644473600) * 1000.0
+                    # row[2]: 请求磁盘号，用 random 随机分配
+                    c1 = random.randint(0, self.num_disks - 1)
+                    # row[3]: 请求类型，read or write
+                    c2 = True if (row[3] == 'Write') else False
+                    # row[4]: 请求地址，缩小
+                    c3 = int(row[4])
+                    while (c3 >= 10000 - (int(row[5]) // 4096)):
+                        c3 = c3 // 1024
+                    # row[5]: 请求大小，block size 的倍数
+                    c4 = int(row[5]) // 4096
+                    writer.writerow([c0, c1, c2, c3, c4])
+
 
     '''
     name: read_io
-    msg: read IO trace file
+    msg: read processed trace file and turn it into IOReq class
     param {*} self
-    param {*} file_name: file name of the trace file. input its path
+    param {*} file_name: processed trace file; file path
     return {*}
     '''    
-    def read_io(self, file_name = filename):
+    def read_io(self, file_name = process_file):
         with open(file_name) as trace_file:
             # csv.reader
-            csv_reader = csv.reader(trace_file)
+            reader = csv.reader(trace_file)
             # 如果有第一行标题，则读取第一行
-            # header = next(csv_reader)
-            count = 1
-            timestamp_start = 0
-            for row in csv_reader:
-                # 要处理一下
-                # timestamp: 记录相对时间
-                # type: 转换为 is_write bool 型变量
-                # TODO offset: 如何处理
-                if (count == 1):
-                    timestamp_start = row[0]
-                # timestamp
-                r1 = (int(row[0]) - int(timestamp_start))
-                # disk number
-                r2 = row[2]
-                # type, read or write
-                r3 = True if (row[3] == 'Write') else False
-                # offset
-                r4 = row[4]
-                # size
-                r5 = row[5]
-
-                count += 1
-
+            header = next(reader)
+            # count = 1
+            # timestamp_start = 0
+            for row in reader:
+                # count += 1
                 # create a new instant of IOReq
-                ioreq = IOReq(r1, r2, r3, r4, r5)
+                ioreq = IOReq(row[0], row[1], row[2], row[3], row[4])
                 # test
-                print(ioreq.timestamp, ioreq.disk_num, ioreq.is_write, ioreq.offset, ioreq.size)
+                # print(ioreq.timestamp, ioreq.disk_num, ioreq.is_write, ioreq.offset, ioreq.size)
                 # append into list
                 self.reqs.append(ioreq)
 
-    # TODO 读取 trace 文件并创建 predicts 列表
-    def read_predicts(self, file_name = filename):
+    
+    '''
+    name: read_predicts
+    msg: read processed trace file and get predicts list for Predictor 
+    param {*} self
+    param {*} file_name: processed trace file; file path
+    return {*}
+    '''
+    def read_predicts(self, file_name = process_file):
         with open(file_name) as trace_file:
             # csv.reader
-            csv_reader = csv.reader(trace_file)
+            reader = csv.reader(trace_file)
             # 如果有第一行标题，则读取第一行
-            # header = next(csv_reader)
+            header = next(reader)
             row_count = 1
             # 第几个间隔
-            interval_count = 0
+            interval_count = 1
             # 该间隔内的请求数
             req_interval_count = 0
-            # 时间间隔
-            time_interval = 0
             # 开始时间
             timestamp_start = 0
-            for row in csv_reader:
+            for row in reader:    
                 if (row_count == 1):
-                    timestamp_start = int(row[0])
-                    time_interval = timestamp_start / 10000000
-                    row_count += 1
-                    interval_count += 1
-                    req_interval_count += 1
-                    continue
-                if ((int(row[0]) - timestamp_start) <= interval_count * time_interval):
+                    timestamp_start = float(row[0])
+                if (float(row[0]) <= timestamp_start + interval_count * self.time_interval):
+                    # 在时间间隔内的请求数 + 1
                     req_interval_count += 1
                 else:
                     self.predicts.append(req_interval_count)
-                    # print(req_interval_count)
-                    req_interval_count = 0
-                    interval_count += 1
+                    # 如果当前这个请求小于下一个时间间隔点
+                    if (float(row[0]) <= timestamp_start + (interval_count + 1) * self.time_interval):
+                        # 当前的请求属于该时间间隔内
+                        req_interval_count = 1
+                        interval_count += 1
+                    # 如果当前这个请求大于下一个时间间隔点
+                    else:
+                        req_interval_count = 0
+                        interval_count += 1
+                        # 循环直到找到对应时间间隔
+                        while (float(row[0]) > timestamp_start + interval_count * self.time_interval):
+                            self.predicts.append(req_interval_count)
+                            interval_count += 1
+                        # 找到了，请求属于当前的时间间隔中
+                        req_interval_count = 1
                 row_count += 1
+            # for end
+            self.predicts.append(req_interval_count)
             # print(self.predicts)
+            # 返回时间戳开始时间点，时间间隔个数
+            return timestamp_start, (interval_count + 1)
 
     
-    # TODO 读取 trace 文件并得到数据块热度
-    # hots 为具有两列的二维 list
-    # [DiskNumber, Offset]
-    def read_hots(self, file_name = filename):
-        pass
+    '''
+    name: read_hots
+    msg: read processed trace file and get hots list for ReorgHandler
+         这里是在一个时间间隔内的 hots，到下一个时间间隔需要更新 hots
+    param {*} self
+    param {*} timestamp_start: 时间戳开始的时候
+    param {*} time_interval: 时间间隔
+    param {*} interval_count: 当前的第几个时间间隔
+    param {*} file_name: processed trace file; file path
+    return {*}
+    '''
+    def read_hots(self, timestamp_start, time_interval, interval_count, file_name = process_file):
+        # 先清空 hots 列表
+        self.hots = []
+        with open (file_name) as trace_file:
+            # csv.reader
+            reader = csv.reader(trace_file)
+            # 如果有第一行标题，则读取第一行
+            header = next(reader)
+            for row in reader:
+                # 在当前时间间隔内时
+                if (float(row[0]) <= timestamp_start + time_interval * interval_count):
+                    for i in range(int(row[4])):
+                        # hots 为具有两列的二维 list
+                        # [DiskNumber, Offset]
+                        self.hots.append([int(row[1]), int(row[3]) + i])
+            # print(self.hots)
 
 
-    # get io reqs queue
     def get_reqs(self):
         return self.reqs
     
@@ -116,7 +179,16 @@ class IOCollector:
     
     def get_hots(self):
         return self.hots
+    
+    def get_interval_count(self):
+        return self.interval_count
+    
+    def get_timestamp_start(self):
+        return self.timestamp_start
+    
+    def get_time_interval(self):
+        return self.time_interval
 
 
 if __name__ == "__main__":
-    iocollector = IOCollector(filename) 
+    iocollector = IOCollector() 
