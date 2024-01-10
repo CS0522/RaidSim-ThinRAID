@@ -12,7 +12,7 @@ raw_file = "./trace/hm_min.csv"
 process_file = "./trace/hm_processed.csv"
 
 class IOCollector:
-    def __init__(self, num_disks, raw_file = raw_file, process_file = process_file):
+    def __init__(self, num_disks, time_interval = 100000, raw_file = raw_file, process_file = process_file):
         self.raw_file = raw_file
         self.process_file = process_file
         # 当前磁盘块的数量
@@ -24,7 +24,7 @@ class IOCollector:
         # for reorg handler
         self.hots = []
         # TODO 手动时间间隔
-        self.time_interval = 1000000
+        self.time_interval = time_interval
 
         # process raw trace file 
         self.process_trace_file()
@@ -84,7 +84,7 @@ class IOCollector:
             for row in reader:
                 # count += 1
                 # create a new instant of IOReq
-                ioreq = IOReq(row[0], row[1], row[2], row[3], row[4])
+                ioreq = IOReq(float(row[0]), int(row[1]), bool(row[2]), int(row[3]), int(row[4]))
                 # test
                 # print(ioreq.timestamp, ioreq.disk_num, ioreq.is_write, ioreq.offset, ioreq.size)
                 # append into list

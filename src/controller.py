@@ -17,7 +17,7 @@ from src.reorghandler import ReorgHandler
 class Controller:
     '''
     name: __init__
-    msg: main.py 中实例化 Controller 的对象，并传入配置参数
+    msg: main.py 中实例化 Controller 的对象，并传入 Config 实例
     param {*} self
     param {*} config: 保存配置参数的类
     return {*}
@@ -40,6 +40,16 @@ class Controller:
         self.raw_file = config.get_raw_file()
         self.process_file = config.get_process_file()
 
+        # predictor
+        self.t_up = config.get_t_up()
+        self.t_down = config.get_t_down()
+        self.n_step = config.get_n_step()
+
+        self.time_interval = config.get_time_interval()
+        self.miu = config.get_miu()
+
+        self.thinraid = config.get_thinraid()
+
         # 检查参数并格式化
         self.check_args()
 
@@ -51,41 +61,58 @@ class Controller:
         
         # 读取 I/O 请求
         # ioreqs, predicts, hots
-        io_collector = IOCollector(self.raid_instant.num_disks, config.get_raw_file(), config.get_process_file())
-        # 获取时间间隔个数
-        interval_count = io_collector.get_interval_count()
-        # 获取时间戳开始时间点
-        timestamp_start = io_collector.get_timestamp_start()
-        # 获取时间间隔时长
-        time_interval = io_collector.get_time_interval()
-        # 获取 predicts 列表
-        predicts = io_collector.get_predicts()
-        # TODO for 循环时间间隔
-        # TODO 前 n 个时间间隔需不需要预测？
-        for i in range(interval_count):
-            # 每个时间间隔都要更新一次 hots 列表
-            io_collector.read_hots(timestamp_start, time_interval, i + 1, self.process_file)
-            # 对于每个 interval，每次 predictor 预测的 list 为 predicts 的截取
-            predict_temp = predicts[:(i + 1)]
-            # predictor 工作负载预测得到待启动磁盘数
-            predictor = Predictor(config, predict_temp, self.raid_instant.num_disks, 
-                                  config.get_t_up(), config.get_t_down(), config.get_n_step())
-            power_on_disk_num = predictor.get_power_on_disk_num()
-            # 数据迁移模块的实例化
-            reorghandler = ReorgHandler(self.raid_instant, power_on_disk_num, io_collector.get_hots())
-            # 如果 power_on_disk_num 大于 0，则存在待启动磁盘，需要进行数据迁移
-            if (power_on_disk_num > 0):
-                # TODO
-                reorghandler.es_algorithm_add()
-            # 如果 power_on_disk_num 等于 0，下一个时间间隔不需要启动磁盘进行数据迁移
-            elif (power_on_disk_num == 0):
-                # TODO
-                pass
-            # 如果 power_on_disk_num 小于 0，则需要关闭磁盘，需要进行数据迁移
-            # 要保证磁盘个数必须为 config 中的 num_disks 以上
-            else:
-                # TODO
-                reorghandler.es_algorithm_del()
+        io_collector = IOCollector(self.raid_instant.num_disks, self.time_interval, self.raw_file, self.get_process_file)
+        # 是否开启 thinraid 数据迁移算法
+        if (self.thinraid == False):
+            self.gen_reqs(io_collector.get_reqs())
+        else:
+            # 获取时间间隔个数
+            interval_count = io_collector.get_interval_count()
+            # 获取时间戳开始时间点
+            timestamp_start = io_collector.get_timestamp_start()
+            # 获取时间间隔时长
+            time_interval = io_collector.get_time_interval()
+            # 获取 predicts 列表
+            predicts = io_collector.get_predicts()
+            # for 循环时间间隔
+            # 前 16 个时间间隔不需要预测
+            # 因为 ARMAX 模型至少需要 16 个数据
+            for i in range(interval_count):
+                # 获取当前时间间隔内的 io requests
+                reqs = io_collector.get_reqs()
+                # 当前 interval 的请求
+                reqs_interval = []
+                for r in reqs:
+                    if (r.timestamp <= timestamp_start + time_interval * (i + 1)):
+                        reqs_interval.append(r)
+                # 发送当前时间间隔内的请求
+                self.gen_reqs(reqs_interval)
+                # 每个时间间隔都要更新一次 hots 列表
+                io_collector.read_hots(timestamp_start, time_interval, i + 1, self.process_file)
+                # 前 16 个时间间隔不需要预测
+                # 因为 ARMAX 模型至少需要 16 个数据
+                power_on_disk_num = self.raid_instant.num_disks
+                if (i > 15):
+                    # 对于每个 interval，每次 predictor 预测的 list 为 predicts 的截取
+                    predict_temp = predicts[:(i + 1)]
+                    # predictor 工作负载预测得到待启动磁盘数
+                    predictor = Predictor(config, predict_temp, self.raid_instant.num_disks)
+                    power_on_disk_num = predictor.get_power_on_disk_num()
+                # 数据迁移模块的实例化
+                reorghandler = ReorgHandler(self.raid_instant, power_on_disk_num, io_collector.get_hots())
+                # 如果 power_on_disk_num 大于 0，则存在待启动磁盘，需要进行数据迁移
+                if (power_on_disk_num > 0):
+                    # TODO
+                    reorghandler.es_algorithm_add()
+                # 如果 power_on_disk_num 等于 0，下一个时间间隔不需要启动磁盘进行数据迁移
+                elif (power_on_disk_num == 0):
+                    # TODO
+                    pass
+                # 如果 power_on_disk_num 小于 0，则需要关闭磁盘，需要进行数据迁移
+                # 要保证磁盘个数必须为 config 中的 num_disks 以上
+                else:
+                    # TODO
+                    reorghandler.es_algorithm_del()
 
 
     '''
@@ -137,26 +164,30 @@ class Controller:
     param {*} self
     return {*}
     '''
-    def gen_reqs(self):
-        # TODO 需要修改为从 trace 文件获取
+    def gen_reqs(self, reqs:list):
+        # 需要修改为从 trace 文件获取
         # 生成请求
-        off = 0
-        for req in range(self.num_reqs):
-            blk = None
-            # sequential workload
-            if self.workload == 'seq':
-                blk = off
-                off += self.req_size
-            # random workload
-            elif self.workload == 'rand':
-                blk = int(random.random() * self.rand_range)
+        # off = 0
+        # for req in range(self.num_reqs):
+        #     blk = None
+        #     # sequential workload
+        #     if self.workload == 'seq':
+        #         blk = off
+        #         off += self.req_size
+        #     # random workload
+        #     elif self.workload == 'rand':
+        #         blk = int(random.random() * self.rand_range)
 
-            # write req
-            if random.random() < self.write_frac:
-                self.raid_instant.enqueue(blk, self.req_size, True)
-            # read req
-            else:
-                self.raid_instant.enqueue(blk, self.req_size, False)
+        #     # write req
+        #     if random.random() < self.write_frac:
+        #         self.raid_instant.enqueue(blk, self.req_size, True)
+        #     # read req
+        #     else:
+        #         self.raid_instant.enqueue(blk, self.req_size, False)
+        for r in reqs:
+            # 请求大小
+            for i in range(r.size):
+                self.raid_instant.single_io('r' if (r.is_write == False) else 'w', r.disk_num, r.offset + i)
 
         eplased_time = self.raid_instant.get_elapsed()
 

@@ -185,7 +185,14 @@ class Raid:
     return {*}
     '''    
     def single_io(self, r_or_w, disk_index, offset, new_line = False):
+        remap_disk = disk_index
+        remap_off = offset
         if self.print_physical:
+            # 判断是否存在重新映射
+            if (self.block_table[disk_index][offset].remap == True):
+                # 需要重新映射到新的磁盘上
+                remap_disk = self.block_table[offset][disk_index].remap_index['col']
+                remap_off = self.block_table[offset][disk_index].remap_index['row']
             # write req
             if r_or_w == 'w':
                 # 如果要写入的数据块是经过迁移的，修改 modified
@@ -194,12 +201,12 @@ class Raid:
                 print(f'write [disk {disk_index}, offset {offset}] ')
             # read req
             elif r_or_w == 'r':
-                print(f'read [disk {disk_index}, offset {offset}] ')
+                print(f'read [disk {remap_disk}, offset {remap_off}] ')
             
             if new_line:
                 print('')
         # I/O 请求发送到指定磁盘
-        self.disks[disk_index].enqueue(offset)
+        self.disks[remap_disk].enqueue(remap_off)
 
     '''
     name: partial_write

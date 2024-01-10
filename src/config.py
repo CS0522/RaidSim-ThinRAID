@@ -27,6 +27,7 @@ class Config:
         # default configs
         self.__seed = configs['seed']
         self.__num_disks = configs['num_disks']
+        self.__max_disks = configs['max_disks']
         self.__block_size = configs['block_size']
         self.__chunk_size = configs['chunk_size']
         self.__num_reqs = configs['num_reqs'] 
@@ -53,10 +54,16 @@ class Config:
         self.__raw_file = configs['raw_file']
         self.__process_file = configs['process_file']
 
+        self.__time_interval = configs['time_interval']
+        self.__miu = configs['miu']
+
         # predictor 
         self.__t_up = configs['t_up']
         self.__t_down = configs['t_down']
         self.__n_step = configs['n_step']
+
+        # thinraid
+        self.__thinraid = configs['thinraid']
         
 
     def get_seed(self):
@@ -64,6 +71,9 @@ class Config:
 
     def get_num_disks(self):
         return self.__num_disks
+    
+    def get_max_disks(self):
+        return self.__max_disks
     
     def get_block_size(self):
         return self.__block_size
@@ -119,6 +129,12 @@ class Config:
     def get_process_file(self):
         return self.__process_file
     
+    def get_time_interval(self):
+        return self.__time_interval
+    
+    def get_miu(self):
+        return self.__miu
+    
     def get_t_up(self):
         return self.__t_up
     
@@ -127,3 +143,6 @@ class Config:
     
     def get_n_step(self):
         return self.__n_step
+    
+    def get_thinraid(self):
+        return self.__thinraid

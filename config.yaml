@@ -1,7 +1,7 @@
 # unit: ms; Byte
-# default configs
 seed: 0
 num_disks: 4
+max_disks: 10
 block_size: 4096
 chunk_size: 4096
 num_reqs: 20
@@ -26,11 +26,19 @@ queue_len: 8
 
 # trace file path
 raw_file: "./trace/hm_min.csv"
-process_file: "./trace/test.csv"
+process_file: "./trace/hm_processed.csv"
+
+# time interval for IO statistics
+# TODO
+time_interval: 100
 
 # predictor
 t_up: 15
 t_down: 5
 n_step: 2
+miu: 0.1
+
+# thinraid enable
+thinraid: True
 
 ### DEFAULT CONFIGS ###
