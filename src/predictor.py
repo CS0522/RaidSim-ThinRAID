@@ -54,14 +54,15 @@ class Predictor:
     def get_predicted_arrival_rate(self):
         # 预测下一个时间间隔的 lamda
         self.lamda = armax_func(self.predicts, 1)
-        self.lamda = round(self.lamda) / self.time_interval
+        self.lamda = self.lamda / self.time_interval
+        print("预测到达率 lambda:", self.lamda)
         return self.lamda
 
 
     def get_next_disk_num(self):
         t = self.curr_disk_num / (self.miu * self.curr_disk_num - self.lamda)
         t = abs(t)
-        print("t", t)
+        print("初始预测响应时间 t:", t)
         while t > self.t_up:
             # next disk num 存在 RAID 磁盘个数上限
             self.next_disk_num = self.next_disk_num + self.n_step
@@ -70,7 +71,7 @@ class Predictor:
                 break
             t = self.next_disk_num / (self.miu * self.next_disk_num - self.lamda)
             t = abs(t)
-            print("t", t)
+            print("添加磁盘后预测响应时间 t:", t)
         while t < self.t_down:
             self.next_disk_num = self.next_disk_num - self.n_step
             # 刚开始创建的是最小的 RAID，所以要保证最少磁盘个数至少是 4
@@ -79,7 +80,7 @@ class Predictor:
                 break
             t = self.next_disk_num / (self.miu * self.next_disk_num - self.lamda)
             t = abs(t)
-            print("t", t)
+            print("减少磁盘后预测响应时间 t:", t)
         return self.next_disk_num
     
     def get_power_on_disk_num(self):

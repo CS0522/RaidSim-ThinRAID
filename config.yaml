@@ -26,19 +26,19 @@ queue_len: 8
 
 # trace file path
 raw_file: "./trace/hm_min.csv"
-process_file: "./trace/hm_processed.csv"
+process_file: "./trace/generated.csv"
 
 # time interval for IO statistics
 # TODO
 time_interval: 100
 
 # predictor
-t_up: 15
-t_down: 5
+t_up: 5
+t_down: 4
 n_step: 2
 miu: 0.1
 
 # thinraid enable
-thinraid: True
+thinraid: False
 
 ### DEFAULT CONFIGS ###

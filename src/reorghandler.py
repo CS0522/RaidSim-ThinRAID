@@ -106,13 +106,16 @@ class ReorgHandler:
         # 1. 查找 CPT 表，找到条带中热度最高的 k 个块
         # reverse = True，从大到小降序
         # row[0]~row[k - 1] 即为热度最高的 k 个块
-        self.cpt.sort(reverse = True, key = lambda x:x.hot)
+        for row in self.cpt:
+            row.sort(reverse = True, key = lambda x:x.hot)
         # 2. 以热度为标准进行分级，归到相应 Rank Array 中
         for row in self.cpt:
-            for col in range(self.power_on_disk_num):
+            # 这里 power_on_disk_num 可能会超过 curr_disk_num 大小导致越界
+            for col in range(self.power_on_disk_num if (self.power_on_disk_num <= self.curr_disk_num) else self.curr_disk_num):
                 node_temp = row[col]
-                self.ra[node_temp.hot // 10].append(node_temp)
-                self.ra_values[node_temp.hot // 10] += node_temp.hot
+                # TODO 10 -> 100
+                self.ra[node_temp.hot // 100].append(node_temp)
+                self.ra_values[node_temp.hot // 100] += node_temp.hot
         # 3. 从高阶到低阶查找块，直到达到阈值 T
         block_hots_sum = 0
         curr_rank = 9
@@ -145,11 +148,17 @@ class ReorgHandler:
         for i in range(self.power_on_disk_num):
             power_on_disk_offset.append(0)
         for node_temp in self.blocks_to_move:
-            # 随机放到某个新添加的磁盘上
             # randint() 左右都闭区间
-            col = random.randint(self.curr_disk_num - self.power_on_disk_num, self.curr_disk_num - 1)
-            row = copy.deepcopy(power_on_disk_offset[col])
-            power_on_disk_offset[col] += 1
+            # col = random.randint(self.curr_disk_num - self.power_on_disk_num, self.curr_disk_num - 1)
+            # TODO 按以下式子放到某个新添加的磁盘上
+            col = (self.curr_disk_num - self.power_on_disk_num) + (node_temp.curr_index['col'] % self.power_on_disk_num)
+            # print("self.curr_disk_num", self.curr_disk_num)
+            # print("self.power_on_disk_num", self.power_on_disk_num)
+            # print("self.curr_disk_num - 1", self.curr_disk_num - 1)
+            # print("col:", col)
+            # print("power_on_disk_offset.length:", len(power_on_disk_offset))
+            row = copy.deepcopy(power_on_disk_offset[col - (self.curr_disk_num - self.power_on_disk_num)]) 
+            power_on_disk_offset[col - (self.curr_disk_num - self.power_on_disk_num)] += 1 
             # 被迁移数据块的 remap 属性修改为 True，修改 remap index
             self.raid_instant.block_table[node_temp.curr_index['row']][node_temp.curr_index['col']].set_remap(True)
             self.raid_instant.block_table[node_temp.curr_index['row']][node_temp.curr_index['col']].set_remap_index(row, col)

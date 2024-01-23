@@ -26,8 +26,8 @@ class IOCollector:
         # TODO 手动时间间隔
         self.time_interval = time_interval
 
-        # process raw trace file 
-        self.process_trace_file()
+        # TODO process raw trace file 
+        # self.process_trace_file()
 
         # read trace
         self.read_io(self.process_file)
@@ -45,7 +45,7 @@ class IOCollector:
     def process_trace_file(self):
         # 读取原 trace 文件并修改，然后创建一个新 trace 文件
         with open(self.raw_file, 'r') as readfile:
-            with open(self.process_file, 'w') as writefile:
+            with open(self.process_file, 'w', newline = '') as writefile:
                 reader = csv.reader(readfile)
                 writer = csv.writer(writefile)
                 for row in reader:
@@ -78,13 +78,15 @@ class IOCollector:
             # csv.reader
             reader = csv.reader(trace_file)
             # 如果有第一行标题，则读取第一行
-            header = next(reader)
+            # header = next(reader)
             # count = 1
             # timestamp_start = 0
             for row in reader:
                 # count += 1
                 # create a new instant of IOReq
-                ioreq = IOReq(float(row[0]), int(row[1]), bool(row[2]), int(row[3]), int(row[4]))
+                # print("row:")
+                # print(row)
+                ioreq = IOReq(float(row[0]), int(row[1]), True if (row[2] == 'True') else False, int(row[3]), int(row[4]))
                 # test
                 # print(ioreq.timestamp, ioreq.disk_num, ioreq.is_write, ioreq.offset, ioreq.size)
                 # append into list
@@ -103,7 +105,7 @@ class IOCollector:
             # csv.reader
             reader = csv.reader(trace_file)
             # 如果有第一行标题，则读取第一行
-            header = next(reader)
+            # header = next(reader)
             row_count = 1
             # 第几个间隔
             interval_count = 1
@@ -137,7 +139,6 @@ class IOCollector:
                 row_count += 1
             # for end
             self.predicts.append(req_interval_count)
-            # print(self.predicts)
             # 返回时间戳开始时间点，时间间隔个数
             return timestamp_start, (interval_count + 1)
 
@@ -160,7 +161,7 @@ class IOCollector:
             # csv.reader
             reader = csv.reader(trace_file)
             # 如果有第一行标题，则读取第一行
-            header = next(reader)
+            # header = next(reader)
             for row in reader:
                 # 在当前时间间隔内时
                 if (float(row[0]) <= timestamp_start + time_interval * interval_count):

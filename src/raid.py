@@ -71,7 +71,48 @@ class Raid:
             # 把每行的 b_list 添加到 block table
             self.block_table.append(b_list)
         # print
+        # print('')
+        # print("block table:")
         # print(self.block_table)
+        # print('')
+            
+
+    '''
+    name: print_block_table
+    msg: 打印 block table
+    param {*} self
+    return {*}
+    '''
+    def print_block_table(self, interval_num):
+        with open('./output/block_table.txt', 'a+') as res_file:
+            title = []
+            for i in range(self.num_disks):
+                title.append('Disk' + str(i) + '  ')
+            res_file.writelines("Interval " + str(interval_num) + ":\n")
+            title.append('\n')
+            res_file.writelines(title)
+            # for r in self.block_table:
+            #     write_row = []
+            #     for c in r:
+            # 只打印前 100 行
+            for i in range(len(self.block_table)):
+                if (i >= 100):
+                    break
+                write_row = []
+                for c in self.block_table[i]:
+                    node_info = ''
+                    if (c.remap == True):
+                        node_info = str('([' + str(c.curr_index['row']) + ', ' + str(c.curr_index['col']) 
+                        + '], [' + str(c.remap_index['row']) + ', ' + str(c.remap_index['col']) + '])  ')
+                    else:
+                        node_info = str('([' + str(c.curr_index['row']) + ', ' + str(c.curr_index['col']) 
+                        + '], False)  ')
+                    write_row.append(node_info)
+                write_row.append('\n')
+                res_file.writelines(write_row)
+            res_file.writelines('\n')
+            res_file.writelines('==========')
+            res_file.writelines('\n')
 
 
     '''
@@ -189,7 +230,7 @@ class Raid:
         remap_off = offset
         if self.print_physical:
             # 判断是否存在重新映射
-            if (self.block_table[disk_index][offset].remap == True):
+            if (self.block_table[offset][disk_index].remap == True):
                 # 需要重新映射到新的磁盘上
                 remap_disk = self.block_table[offset][disk_index].remap_index['col']
                 remap_off = self.block_table[offset][disk_index].remap_index['row']

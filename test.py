@@ -269,8 +269,8 @@ predictor test
 
 # read_hots(1172174139434.557, 1000000, 15)
 
-from src.armax import armax_func
-from src.iocollector import IOCollector
+# from src.armax import armax_func
+# from src.iocollector import IOCollector
 
 '''
 name: get_predicted_arrival_rate
@@ -278,52 +278,88 @@ msg: 获取 the predicted arrival rate in next epoch lamda
 param {*} self
 return {*}
 '''
-def get_predicted_arrival_rate(predicts):
-    # 预测下一个时间间隔的 lamda
-    lamda = armax_func(predicts, 1)
-    # lambda = val / time_interval
-    lamda = round(lamda) / 100
-    print("lambda", lamda)
-    # lamda = 10
-    return lamda
+# def get_predicted_arrival_rate(predicts):
+#     # 预测下一个时间间隔的 lamda
+#     lamda = armax_func(predicts, 1)
+#     # lambda = val / time_interval
+#     lamda = round(lamda) / 100
+#     print("lambda", lamda)
+#     # lamda = 10
+#     return lamda
 
 
-def get_next_disk_num(curr_disk_num, lamda, miu = 0.1, t_up = 15, t_down = 5, n_step = 2):
-    next_disk_num  = curr_disk_num
-    t = curr_disk_num / (miu * curr_disk_num - lamda)
-    t = abs(t)
-    # t *= 100
-    print("t", t)
-    while t > t_up:
-        next_disk_num = next_disk_num + n_step
-        if (next_disk_num > 10):
-            next_disk_num = 10
-            break
-        t = next_disk_num / (miu * next_disk_num - lamda)
-        t = abs(t)
-        # t *= 100
-        print("t", t)
-    while t < t_down:
-        next_disk_num = next_disk_num - n_step
-        # 刚开始创建的是最小的 RAID，所以要保证最少磁盘个数至少是 4
-        if (next_disk_num < 4):
-            next_disk_num = 4
-            break
-        t = next_disk_num / (miu * next_disk_num - lamda)
-        t = abs(t)
-        # t *= 100
-    return next_disk_num
+# def get_next_disk_num(curr_disk_num, lamda, miu = 0.1, t_up = 15, t_down = 5, n_step = 2):
+#     next_disk_num  = curr_disk_num
+#     t = curr_disk_num / (miu * curr_disk_num - lamda)
+#     t = abs(t)
+#     # t *= 100
+#     print("t", t)
+#     while t > t_up:
+#         next_disk_num = next_disk_num + n_step
+#         if (next_disk_num > 10):
+#             next_disk_num = 10
+#             break
+#         t = next_disk_num / (miu * next_disk_num - lamda)
+#         t = abs(t)
+#         # t *= 100
+#         print("t", t)
+#     while t < t_down:
+#         next_disk_num = next_disk_num - n_step
+#         # 刚开始创建的是最小的 RAID，所以要保证最少磁盘个数至少是 4
+#         if (next_disk_num < 4):
+#             next_disk_num = 4
+#             break
+#         t = next_disk_num / (miu * next_disk_num - lamda)
+#         t = abs(t)
+#         # t *= 100
+#     return next_disk_num
 
 # predicts = [10, 20, 11, 12, 22, 13, 14, 15, 16, 11, 12, 13, 16, 10, 9, 8, 7]
 
-io_collector = IOCollector(4, 100, "./trace/hm_min.csv", "./trace/hm_processed.csv")
+# io_collector = IOCollector(4, 100, "./trace/hm_min.csv", "./trace/hm_processed.csv")
 
-predicts = io_collector.get_predicts()
+# predicts = io_collector.get_predicts()
 
-print("predicts", predicts)
+# print("predicts", predicts)
 
-lamda = get_predicted_arrival_rate(predicts)
+# lamda = get_predicted_arrival_rate(predicts)
 
-next_disk_num = get_next_disk_num(6, lamda)
+# next_disk_num = get_next_disk_num(6, lamda)
 
-print("next disk num", next_disk_num)
+# print("next disk num", next_disk_num)
+
+
+"""
+测试 10000 * 10 的 table 的 deep copy
+"""
+# import copy
+
+# block_table = []
+
+# class Node:
+#     timestamp = 100.0
+#     disk_num = 10
+#     is_write = False
+#     offset = 100
+#     req_size = 1
+
+# for i in range(10000):
+#     row = []
+#     for j in range(10):
+#         node_temp = Node()
+#         row.append(node_temp)
+#     block_table.append(row)
+
+# print(block_table)
+
+# blk_copy = copy.copy(block_table)
+# blk_deep_copy = copy.deepcopy(block_table)
+
+# print("copy:")
+# print(blk_copy)
+
+# print("deep copy:")
+# print(blk_deep_copy)
+
+# import random
+# print(random.randint(4, 7))

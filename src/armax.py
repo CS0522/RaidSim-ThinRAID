@@ -29,5 +29,6 @@ def armax_func(data, forecast_num):
     # print(arma_mod70.summary())
     # 返回预测结果、标准误差、置信区间
     (arr1, arr2, arr3) = arma_mod70.forecast(forecast_num)
-    print("forcast result", arr1[0])
+    print('')
+    print("预测结果:", arr1[0])
     return arr1[0]
