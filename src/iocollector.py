@@ -6,25 +6,31 @@ Description: IOCollector class
 
 import csv
 from src.ioreq import IOReq
+from src.config import Config
 import random
 
 raw_file = "./trace/hm_min.csv"
 process_file = "./trace/hm_processed.csv"
 
 class IOCollector:
-    def __init__(self, num_disks, time_interval = 100000, raw_file = raw_file, process_file = process_file):
-        self.raw_file = raw_file
-        self.process_file = process_file
+    def __init__(self, config:Config):
+        self.raw_file = config.get_raw_file()
+        self.process_file = config.get_process_file()
         # 当前磁盘块的数量
-        self.num_disks = num_disks
+        self.num_disks = config.get_num_disks()
         # requests queue
         self.reqs = []
         # for predictor
         self.predicts = []
         # for reorg handler
         self.hots = []
-        # TODO 手动时间间隔
-        self.time_interval = time_interval
+        # 时间间隔
+        self.time_interval = config.get_time_interval()
+
+        self.num_tracks = config.get_num_tracks()
+        self.blocks_per_track = config.get_blocks_per_track()
+
+        self.block_size = config.get_block_size()
 
         # TODO process raw trace file 
         # self.process_trace_file()
@@ -44,6 +50,19 @@ class IOCollector:
     '''
     def process_trace_file(self):
         # 读取原 trace 文件并修改，然后创建一个新 trace 文件
+        # 获取中位数
+        mid_addr = 0
+        max_addr = 0
+        with open(self.raw_file, 'r') as readfile:
+            reader = csv.reader(readfile)
+            addr_lst = []
+            for r in reader:
+                addr_lst.append(int(r[4]))
+            addr_lst.sort()
+            mid_addr = addr_lst[(len(addr_lst) - 1) // 2]
+            max_addr = addr_lst[len(addr_lst) - 1]
+        half_mid_addr = mid_addr // (self.num_disks // 2)
+
         with open(self.raw_file, 'r') as readfile:
             with open(self.process_file, 'w', newline = '') as writefile:
                 reader = csv.reader(readfile)
@@ -53,16 +72,19 @@ class IOCollector:
                     # 对 trace 内文件进行处理
                     # row[0]: 时间戳，FILETIME 转换为毫秒级时间戳
                     c0 = ((int(row[0]) / 10000000) - 11644473600) * 1000.0
-                    # row[2]: 请求磁盘号，用 random 随机分配
-                    c1 = random.randint(0, self.num_disks - 1)
+                    # TODO row[2]: 请求磁盘号，每份地址归为一个磁盘
+                    # c1 = random.randint(0, self.num_disks - 1)
+                    c1 = (self.num_disks - 1) if (int(row[4]) // (half_mid_addr) >= self.num_disks) else (int(row[4]) // (half_mid_addr))
                     # row[3]: 请求类型，read or write
                     c2 = True if (row[3] == 'Write') else False
-                    # row[4]: 请求地址，缩小
-                    c3 = int(row[4])
-                    while (c3 >= 10000 - (int(row[5]) // 4096)):
-                        c3 = c3 // 1024
+                    # row[4]: 请求地址，按比例缩小
+                    c3 = int((self.num_tracks * self.blocks_per_track) * float(int(row[4]) / max_addr))
+                    while (c3 >= (self.num_tracks * self.blocks_per_track) - (int(row[5]) // self.block_size)):
+                        c3 -= 1
+                    # while (c3 >= 10000 - (int(row[5]) // 4096)):
+                    #     c3 = c3 // 1024
                     # row[5]: 请求大小，block size 的倍数
-                    c4 = int(row[5]) // 4096
+                    c4 = int(row[5]) // self.block_size
                     writer.writerow([c0, c1, c2, c3, c4])
 
 

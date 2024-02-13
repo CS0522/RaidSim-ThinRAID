@@ -12,17 +12,19 @@ from src.node import Node
 from src.raid import Raid
 
 class ReorgHandler:
-    def __init__(self, raid:Raid, power_on_disk_num, hots):
+    def __init__(self, raid:Raid, power_on_disk_num, hots, timestamp_interval):
         # a RAID instant
         # 直接对 raid 实例进行修改
         self.raid_instant = raid
         # the number of disks to be power on
-        self.power_on_disk_num = power_on_disk_num
+        self.power_on_disk_num = abs(power_on_disk_num)
         # the number of current disks
         self.curr_disk_num = raid.num_disks
         # hots 为具有两列的二维 list
         # [DiskNumber, Offset]
         self.hots = hots
+        # 当前时间戳（时间间隔）
+        self.timestamp_interval = timestamp_interval
 
         # 设置数据块热度
         self.set_hot_blocks()
@@ -33,8 +35,15 @@ class ReorgHandler:
         self.cpt = copy.deepcopy(self.raid_instant.block_table)
         # Rank Array
         # [0~10, 10~20, 20~30, 30~40, 40~50, 50~60, 60~70, 70~80, 80~90, 90~100]
-        self.ra = [[], [], [], [], [], [], [], [], [], []]
-        self.ra_values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        # self.ra = [[], [], [], [], [], [], [], [], [], []]
+        # self.ra_values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.ra = []
+        self.ra_values = []
+        for i in range(100):
+            ls = []
+            self.ra.append([])
+        for i in range(100):
+            self.ra_values.append(0)
         # blocks queue that are prepared to migrate
         self.blocks_to_move = []
 
@@ -51,6 +60,38 @@ class ReorgHandler:
             # r[1] 作为 row，r[0] 作为 col
             # 该位置的数据块热度值 + 1
             self.raid_instant.block_table[r[1]][r[0]].hot += 1
+
+
+    '''
+    name: print_hots
+    msg: 打印 hots
+    param {*} self
+    return {*}
+    '''
+    def print_hots(self, interval_num):
+        with open("./output/hots.txt", 'a+') as res_file:
+            title = []
+            for i in range(self.curr_disk_num):
+                title.append('Disk' + str(i) + '  ')
+            res_file.writelines("Interval " + str(interval_num) + ":\n")
+            title.append('\n')
+            res_file.writelines(title)
+            # for r in self.block_table:
+            #     write_row = []
+            #     for c in r:
+            # 只打印前 100 行
+            for i in range(len(self.raid_instant.block_table)):
+                if (i >= 100):
+                    break
+                write_row = []
+                for c in self.raid_instant.block_table[i]:
+                    node_info = str('([' + str(c.curr_index['row']) + ', ' + str(c.curr_index['col']) + '], ' + str(c.hot) + ')  ')
+                    write_row.append(node_info)
+                write_row.append('\n')
+                res_file.writelines(write_row)
+            res_file.writelines('\n')
+            res_file.writelines('==========')
+            res_file.writelines('\n')
 
 
     '''
@@ -112,10 +153,13 @@ class ReorgHandler:
         for row in self.cpt:
             # 这里 power_on_disk_num 可能会超过 curr_disk_num 大小导致越界
             for col in range(self.power_on_disk_num if (self.power_on_disk_num <= self.curr_disk_num) else self.curr_disk_num):
+                # TODO 如果条带的数据块 hot 值都是 0
+                if (row[col].hot == 0):
+                    continue
                 node_temp = row[col]
                 # TODO 10 -> 100
-                self.ra[node_temp.hot // 100].append(node_temp)
-                self.ra_values[node_temp.hot // 100] += node_temp.hot
+                self.ra[node_temp.hot // 1000].append(node_temp)
+                self.ra_values[node_temp.hot // 1000] += node_temp.hot
         # 3. 从高阶到低阶查找块，直到达到阈值 T
         block_hots_sum = 0
         curr_rank = 9
@@ -132,7 +176,7 @@ class ReorgHandler:
             curr_rank -= 1
         # 当前启动磁盘个数增加
         # self.curr_disk_num += self.power_on_disk_num
-        self.raid_instant.add_disks(self.power_on_disk_num)
+        self.raid_instant.add_disks(self.power_on_disk_num, self.timestamp_interval)
         self.curr_disk_num = self.raid_instant.num_disks
         # 4. 迁移数据块
         # block table 添加 k 列
@@ -150,15 +194,13 @@ class ReorgHandler:
         for node_temp in self.blocks_to_move:
             # randint() 左右都闭区间
             # col = random.randint(self.curr_disk_num - self.power_on_disk_num, self.curr_disk_num - 1)
-            # TODO 按以下式子放到某个新添加的磁盘上
+            # 按以下式子放到某个新添加的磁盘上
             col = (self.curr_disk_num - self.power_on_disk_num) + (node_temp.curr_index['col'] % self.power_on_disk_num)
-            # print("self.curr_disk_num", self.curr_disk_num)
-            # print("self.power_on_disk_num", self.power_on_disk_num)
-            # print("self.curr_disk_num - 1", self.curr_disk_num - 1)
-            # print("col:", col)
-            # print("power_on_disk_offset.length:", len(power_on_disk_offset))
             row = copy.deepcopy(power_on_disk_offset[col - (self.curr_disk_num - self.power_on_disk_num)]) 
             power_on_disk_offset[col - (self.curr_disk_num - self.power_on_disk_num)] += 1 
+            # 迁移数据块需要读写
+            self.raid_instant.single_io(self.timestamp_interval, 'r', node_temp.curr_index['col'], node_temp.curr_index['row'])
+            self.raid_instant.single_io(self.timestamp_interval, 'w', col, row)
             # 被迁移数据块的 remap 属性修改为 True，修改 remap index
             self.raid_instant.block_table[node_temp.curr_index['row']][node_temp.curr_index['col']].set_remap(True)
             self.raid_instant.block_table[node_temp.curr_index['row']][node_temp.curr_index['col']].set_remap_index(row, col)
@@ -198,7 +240,7 @@ class ReorgHandler:
                     # 如果 modified == True，重新执行一次 write request
                     if (self.raid_instant.block_table[node_temp.old_index['row']][node_temp.old_index['col']].modified == True):
                         # write req
-                        self.raid_instant.single_io('w', node_temp.old_index['col'], node_temp.old_index['row'])
+                        self.raid_instant.single_io(self.timestamp_interval, 'w', node_temp.old_index['col'], node_temp.old_index['row'])
                         # 修改原数据块
                         self.raid_instant.block_table[node_temp.old_index['row']][node_temp.old_index['col']].set_modified(False)
                         self.raid_instant.block_table[node_temp.old_index['row']][node_temp.old_index['col']].set_remap(False)
@@ -209,9 +251,13 @@ class ReorgHandler:
                         self.raid_instant.block_table[node_temp.old_index['row']][node_temp.old_index['col']].set_remap_index(-1, -1)
                 # 不是迁移数据块，而是新写入到新添加磁盘上的数据块
                 else:
-                    self.raid_instant.enqueue(int(random.random() * self.raid_instant.rand_range), 1, True)
+                    pass
+                    # trace 工作负载中没有对新添加的磁盘进行写入和读取，所以新添加的磁盘上都是经过迁移的数据块
+                    # self.raid_instant.enqueue(int(random.random() * self.raid_instant.rand_range), 1, True)
+                    # self.raid_instant.single_io('w', random.randint(0, self.curr_disk_num - self.power_on_disk_num - 1), 
+                    #                             random.randint(0, self.raid_instant.num_tracks * self.raid_instant.blocks_per_track - 1))
         # 处理完成后，清空 blocks_to_move 列表
         self.blocks_to_move.clear()
         # 删除磁盘
-        self.raid_instant.del_disks(self.power_on_disk_num)
+        self.raid_instant.del_disks(self.power_on_disk_num, self.timestamp_interval)
         self.curr_disk_num = self.raid_instant.num_disks

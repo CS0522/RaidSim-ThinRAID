@@ -42,6 +42,7 @@ class Config:
         self.__raid5_type = configs['raid5_type']
         self.__timing = configs['timing']
         self.__solve = configs['solve']
+        self.__print_physical = configs['print_physical']
         
         # Disk
         self.__num_tracks = configs['num_tracks']
@@ -49,6 +50,7 @@ class Config:
         self.__seek_time = configs['seek_time']
         self.__xfer_time = configs['xfer_time']
         self.__queue_len = configs['queue_len']
+        self.__sleep_timeout = configs['sleep_timeout']
 
         # trace file path
         self.__raw_file = configs['raw_file']
@@ -64,6 +66,42 @@ class Config:
 
         # thinraid
         self.__thinraid = configs['thinraid']
+
+    
+    def print_args(self):
+        # unit: ms; Byte
+        # default configs
+        print("** CONFIGS **")
+        print('')
+        print("初始磁盘数:", self.__num_disks)
+        print("最大磁盘数:", self.__max_disks)
+        print("数据块大小:", self.__block_size)
+        print("磁盘块大小:", self.__chunk_size)
+        print("RAID 级别:", self.__raid_level)
+        print("打印 I/O 请求:", self.__print_physical)
+        
+        # Disk
+        print("磁盘休眠超时:", self.__sleep_timeout)
+        print("磁盘磁道数:", self.__num_tracks)
+        print("每个磁道数据块数:", self.__blocks_per_track)
+
+        # trace file path
+        print("原始 trace 文件:", self.__raw_file)
+        print("处理 trace 文件:", self.__process_file)
+
+        print("时间窗口:", self.__time_interval)
+
+        # predictor 
+        print("预测响应阈值上界:", self.__t_up)
+        print("预测响应阈值下界:", self.__t_down)
+        print("添加磁盘步长:", self.__n_step)
+
+        # thinraid
+        print("开启 ThinRAID:", self.__thinraid)
+        
+        print('')
+        print("*************")
+        print('')
         
 
     def get_seed(self):
@@ -108,6 +146,9 @@ class Config:
     def get_solve(self):
         return self.__solve
     
+    def get_print_physcial(self):
+        return self.__print_physical
+    
     def get_num_tracks(self):
         return self.__num_tracks
 
@@ -122,6 +163,9 @@ class Config:
     
     def get_queue_len(self):
         return self.__queue_len
+    
+    def get_sleep_timeout(self):
+        return self.__sleep_timeout
 
     def get_raw_file(self):
         return self.__raw_file
