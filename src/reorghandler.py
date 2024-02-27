@@ -4,10 +4,8 @@ Date: 2023-12-06 00:51:22
 Description: ReorgHandler class. Implement ThinRAID's ES Algorithm
 '''
 
-# TODO 数据块热度暂时使用 random
 
 import copy
-import random
 from src.node import Node
 from src.raid import Raid
 
@@ -26,6 +24,8 @@ class ReorgHandler:
         # 当前时间戳（时间间隔）
         self.timestamp_interval = timestamp_interval
 
+        # 清空上个时间间隔的数据块热度
+        self.clear_hot_blocks()
         # 设置数据块热度
         self.set_hot_blocks()
         # 计算阈值 T
@@ -39,18 +39,32 @@ class ReorgHandler:
         # self.ra_values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.ra = []
         self.ra_values = []
-        for i in range(100):
+        # TODO 这里要适当修改
+        self.ra_num = 10
+        for i in range(self.ra_num):
             ls = []
             self.ra.append([])
-        for i in range(100):
+        for i in range(self.ra_num):
             self.ra_values.append(0)
         # blocks queue that are prepared to migrate
         self.blocks_to_move = []
 
+
+    '''
+    name: clear_hot_blocks
+    msg: 清空数据块的热度值
+    param {*} self
+    return {*}
+    '''
+    def clear_hot_blocks(self):
+        for r in self.raid_instant.block_table:
+            for c in r:
+                c.hot = 0
+
     
     '''
     name: set_hot_blocks
-    msg: 设置磁盘块的热度值
+    msg: 设置数据块的热度值
     param {*} self
     return {*}
     '''
@@ -76,12 +90,9 @@ class ReorgHandler:
             res_file.writelines("Interval " + str(interval_num) + ":\n")
             title.append('\n')
             res_file.writelines(title)
-            # for r in self.block_table:
-            #     write_row = []
-            #     for c in r:
             # 只打印前 100 行
             for i in range(len(self.raid_instant.block_table)):
-                if (i >= 100):
+                if (i >= 1000):
                     break
                 write_row = []
                 for c in self.raid_instant.block_table[i]:
@@ -153,16 +164,15 @@ class ReorgHandler:
         for row in self.cpt:
             # 这里 power_on_disk_num 可能会超过 curr_disk_num 大小导致越界
             for col in range(self.power_on_disk_num if (self.power_on_disk_num <= self.curr_disk_num) else self.curr_disk_num):
-                # TODO 如果条带的数据块 hot 值都是 0
+                # TODO 如果条带的数据块 hot 值都是 0，不迁移这些数据块
                 if (row[col].hot == 0):
                     continue
                 node_temp = row[col]
-                # TODO 10 -> 100
-                self.ra[node_temp.hot // 1000].append(node_temp)
-                self.ra_values[node_temp.hot // 1000] += node_temp.hot
+                self.ra[node_temp.hot // (self.ra_num)].append(node_temp)
+                self.ra_values[node_temp.hot // (self.ra_num)] += node_temp.hot
         # 3. 从高阶到低阶查找块，直到达到阈值 T
         block_hots_sum = 0
-        curr_rank = 9
+        curr_rank = self.ra_num - 1
         while (curr_rank >= 0 and block_hots_sum <= self.threshold):
             for node_temp in self.ra[curr_rank]:
                 # 如果当前热度总和小于阈值
@@ -181,11 +191,10 @@ class ReorgHandler:
         # 4. 迁移数据块
         # block table 添加 k 列
         # for row in self.raid_instant.block_table:
-        for r in range(10000):
+        for r in range(self.raid_instant.blocks_per_disk):
             for i in range(self.power_on_disk_num):
                 new_node = Node(r, i + (self.curr_disk_num - self.power_on_disk_num))
                 self.raid_instant.block_table[r].append(new_node)
-        # 被迁移数据块随机放在新添加的磁盘上
         # 创建一个 list 记录当前每个新加的磁盘上的偏移位置
         # [0, 0, 0, ..., 0]
         power_on_disk_offset = []
@@ -232,7 +241,7 @@ class ReorgHandler:
     '''
     def es_algorithm_del(self):
         # 遍历新添加的磁盘上的数据块
-        for row in range(10000):
+        for row in range(self.raid_instant.blocks_per_disk):
             for col in range(self.curr_disk_num - self.power_on_disk_num, self.curr_disk_num):
                 node_temp = self.raid_instant.block_table[row][col]
                 # 判断是否是迁移数据块
@@ -253,9 +262,6 @@ class ReorgHandler:
                 else:
                     pass
                     # trace 工作负载中没有对新添加的磁盘进行写入和读取，所以新添加的磁盘上都是经过迁移的数据块
-                    # self.raid_instant.enqueue(int(random.random() * self.raid_instant.rand_range), 1, True)
-                    # self.raid_instant.single_io('w', random.randint(0, self.curr_disk_num - self.power_on_disk_num - 1), 
-                    #                             random.randint(0, self.raid_instant.num_tracks * self.raid_instant.blocks_per_track - 1))
         # 处理完成后，清空 blocks_to_move 列表
         self.blocks_to_move.clear()
         # 删除磁盘

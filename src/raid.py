@@ -120,7 +120,7 @@ class Raid:
             res_file.writelines(title)
             # 只打印前 100 行
             for i in range(len(self.block_table)):
-                if (i >= 100):
+                if (i >= 1000):
                     break
                 write_row = []
                 for c in self.block_table[i]:
@@ -159,7 +159,7 @@ class Raid:
         #     self.disks[d].update_latest_req_timestamp(timestamp)
         # print
         for i in range(self.num_disks, self.num_disks + add_disk_num):
-            print('启动磁盘', i)
+            print(f'启动磁盘{i}')
         print('')
         # 修改当前磁盘数量
         self.num_disks += add_disk_num
@@ -186,10 +186,10 @@ class Raid:
         # 关闭磁盘
         # self.end_disks(timestamp, self.num_disks - del_disk_num, del_disk_num)
         for d in range(self.num_disks - del_disk_num, self.num_disks):
-            self.disks[i].hibernate_disk(timestamp)
+            self.disks[d].hibernate_disk(timestamp)
         # print
         for i in range(self.num_disks - del_disk_num, self.num_disks):
-            print('关闭磁盘', i)
+            print(f'关闭磁盘{i}')
         print('')
         # 修改当前磁盘数量
         self.num_disks -= del_disk_num

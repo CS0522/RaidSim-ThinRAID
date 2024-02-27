@@ -50,7 +50,7 @@ class Config:
         self.__seek_time = configs['seek_time']
         self.__xfer_time = configs['xfer_time']
         self.__queue_len = configs['queue_len']
-        self.__sleep_timeout = configs['sleep_timeout']
+        # self.__sleep_timeout = configs['sleep_timeout']
 
         # trace file path
         self.__raw_file = configs['raw_file']
@@ -64,8 +64,8 @@ class Config:
         self.__t_down = configs['t_down']
         self.__n_step = configs['n_step']
 
-        # thinraid
-        self.__thinraid = configs['thinraid']
+        # raid mode
+        self.__mode = configs['mode']
 
     
     def print_args(self):
@@ -81,7 +81,7 @@ class Config:
         print("打印 I/O 请求:", self.__print_physical)
         
         # Disk
-        print("磁盘休眠超时:", self.__sleep_timeout)
+        # print("磁盘休眠超时:", self.__sleep_timeout)
         print("磁盘磁道数:", self.__num_tracks)
         print("每个磁道数据块数:", self.__blocks_per_track)
 
@@ -96,8 +96,8 @@ class Config:
         print("预测响应阈值下界:", self.__t_down)
         print("添加磁盘步长:", self.__n_step)
 
-        # thinraid
-        print("开启 ThinRAID:", self.__thinraid)
+        # raid mode
+        print("RAID 模式:", self.__mode)
         
         print('')
         print("*************")
@@ -164,8 +164,8 @@ class Config:
     def get_queue_len(self):
         return self.__queue_len
     
-    def get_sleep_timeout(self):
-        return self.__sleep_timeout
+    # def get_sleep_timeout(self):
+    #     return self.__sleep_timeout
 
     def get_raw_file(self):
         return self.__raw_file
@@ -188,5 +188,5 @@ class Config:
     def get_n_step(self):
         return self.__n_step
     
-    def get_thinraid(self):
-        return self.__thinraid
+    def get_mode(self):
+        return self.__mode

@@ -185,8 +185,8 @@ class IOCollector:
             # 如果有第一行标题，则读取第一行
             # header = next(reader)
             for row in reader:
-                # 在当前时间间隔内时
-                if (float(row[0]) <= timestamp_start + time_interval * interval_count):
+                # 在当前时间间隔内的 hots
+                if (float(row[0]) >= timestamp_start + time_interval * (interval_count - 1)) and (float(row[0]) <= timestamp_start + time_interval * interval_count):
                     for i in range(int(row[4])):
                         # hots 为具有两列的二维 list
                         # [DiskNumber, Offset]

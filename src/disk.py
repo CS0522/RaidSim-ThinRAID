@@ -52,9 +52,11 @@ class Disk:
         # 最近的 req 的时间：绝对
         self.latest_req_timestamp = 0
         # 磁盘休眠超时
-        self.sleep_timeout = config.get_sleep_timeout()
+        self.sleep_timeout = config.get_time_interval()
         # 是否活跃磁盘
         self.active = False
+        # 是否启用过
+        self.spin_up_once = False
 
         # trace 文件开始时间点
         self.timestamp_start = 0
@@ -94,6 +96,8 @@ class Disk:
         self.active_time_points.append(timestamp)
         self.active_timestamp = timestamp
         self.active = True
+        # 标记为启用过
+        self.spin_up_once = True
 
 
     '''
@@ -104,6 +108,8 @@ class Disk:
     return {*}
     '''
     def end_disk(self, timestamp):
+        if (self.spin_up_once == False):
+            return
         # 处于活跃状态
         if (self.active == True):
             self.hibernate_disk(timestamp)
@@ -112,8 +118,6 @@ class Disk:
             # 增加休眠时长
             self.sleep_time_total += timestamp - self.sleep_timestamp
             self.sleep_time_periods.append(timestamp - self.sleep_timestamp)
-        
-        self.is_end = True
 
 
 

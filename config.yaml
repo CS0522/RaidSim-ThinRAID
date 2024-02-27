@@ -26,15 +26,16 @@ seek_time: 10
 xfer_time: 0.1
 queue_len: 8
 # 磁盘休眠超时
-sleep_timeout: 100
+# 与 time_interval 保持相同
+# sleep_timeout: 100
 
 # trace file path
 raw_file: "./trace/hm_1_min.csv"
-# process_file: "./trace/hm_1_processed.csv"
-process_file: "./trace/generated.csv"
+process_file: "./trace/hm_1_processed.csv"
+# process_file: "./trace/generated.csv"
 
-# time interval for IO statistics
-time_interval: 100
+# time interval for IO statistics and for disk sleep timeout
+time_interval: 5000000
 
 # predictor
 t_up: 2
@@ -42,8 +43,9 @@ t_down: 1.5
 n_step: 2
 miu: 0.5
 
-# thinraid enable
-thinraid: False
+# RAID mode
+# conventional, thinraid, no migration algorithm, no power control policy
+mode: 'no migration algorithm'
 
 ### DEFAULT CONFIGS ###
 

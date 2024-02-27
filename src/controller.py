@@ -13,6 +13,7 @@ from src.config import Config
 from src.iocollector import IOCollector
 from src.predictor import Predictor
 from src.reorghandler import ReorgHandler
+from src.migrationhandler import MigrationHandler
 
 class Controller:
     '''
@@ -49,7 +50,7 @@ class Controller:
         self.time_interval = config.get_time_interval()
         self.miu = config.get_miu()
 
-        self.thinraid = config.get_thinraid()
+        self.mode = config.get_mode()
 
         # 检查参数并格式化
         self.check_args()
@@ -81,7 +82,8 @@ class Controller:
         # print(predicts)
         # 获取 io requests
         reqs = io_collector.get_reqs()
-        print("I/O 请求总数:", len(reqs))
+        reqs_num = len(reqs)
+        print("I/O 请求总数:", reqs_num)
         # 打印 predicts
         # print('')
         # print('全部预测数据:')
@@ -110,71 +112,188 @@ class Controller:
             # TODO 每个间隔的 reqs 发送后循环检查每个磁盘是否休眠超时
             # self.raid_instant.check_disk_status(timestamp_start + self.time_interval * (i + 1))
             
-            # 如果没有开启 thinraid
-            if (self.thinraid == False):
+            # conventional
+            if (self.mode == 'conventional'):
                 continue
+            
+            # thinraid
+            elif (self.mode == 'thinraid'):
+                # 每个时间间隔都要更新一次 hots
+                # 上一个时间间隔的 hots 都需要清空
+                io_collector.read_hots(timestamp_start, self.time_interval, i + 1, self.process_file)
+                hots = io_collector.get_hots()
 
-            # 打印 block table
-            self.raid_instant.print_block_table(i + 1)
-            # 每个时间间隔都要更新一次 hots
-            io_collector.read_hots(timestamp_start, self.time_interval, i + 1, self.process_file)
-            hots = io_collector.get_hots()
+                # TODO FOR DEBUG
+                if (i > 30):
+                    break
 
-            # TODO FOR DEBUG
-            # if (i > 30):
-            #     break
-
-            # 前 16 个时间间隔不需要预测
-            # 因为 ARMAX 模型至少需要 16 个数据
-            power_on_disk_num = 0
-            if (i > 15):
-                # 对于每个 interval，每次 predictor 预测的 list 为 predicts 的截取
-                predict_temp = predicts[(i - 16):(i + 1)]
-                # predictor 工作负载预测得到待启动磁盘数
-                # TODO 如果当前间隔的 reqs_interval 为空，则不预测
-                # if (len(reqs_interval) != 0):
-                # TODO 如果下一个间隔为 0，则不预测
                 power_on_disk_num = 0
-                if (predict_temp[len(predict_temp) - 1] != 0):
-                    predictor = Predictor(config, predict_temp, self.raid_instant.num_disks)
-                    power_on_disk_num = predictor.get_power_on_disk_num()
-                # 打印 predict_temp
-                print('')
-                print("预测数据:")
-                # 每 10 个换行输出
-                print('[ ', end = '')
-                for k in range(len(predict_temp)):
-                    if (k % 9 == 0 and k != 0):
-                        print(predict_temp[k], end = ' \n')
-                        continue
-                    print(predict_temp[k], end = ' ')
-                print(']')
-                
-            # 数据迁移模块的实例化
-            reorghandler = ReorgHandler(self.raid_instant, power_on_disk_num, hots, timestamp_start + self.time_interval * (i + 1))
-            # 打印 hots
-            reorghandler.print_hots(i + 1)
-            # 如果 power_on_disk_num 大于 0，则存在待启动磁盘，需要进行数据迁移
-            if (power_on_disk_num > 0):
-                # TODO
-                print('')
-                print("当前活动磁盘数:", self.raid_instant.num_disks)
-                print("待启动磁盘数:", power_on_disk_num)
-                print("进行数据迁移...")
-                reorghandler.es_algorithm_add()
-            # 如果 power_on_disk_num 等于 0，下一个时间间隔不需要启动磁盘进行数据迁移
-            elif (power_on_disk_num == 0):
-                # TODO
-                pass
-            # 如果 power_on_disk_num 小于 0，则需要关闭磁盘，需要进行数据迁移
-            # 要保证磁盘个数必须为 config 中的 num_disks 以上
-            else:
-                # TODO
-                print('')
-                print("当前活动磁盘数:", self.raid_instant.num_disks)
-                print("待关闭磁盘数:", abs(power_on_disk_num))
-                print("进行数据迁移...")
-                reorghandler.es_algorithm_del()
+                # 前 16 个时间间隔不需要预测
+                # 因为 ARMAX 模型至少需要 16 个数据
+                if (i > 15):
+                    # 对于每个 interval，每次 predictor 预测的 list 为 predicts 的截取
+                    predict_temp = predicts[(i - 16):(i + 1)]
+                    # predictor 工作负载预测得到待启动磁盘数
+                    # TODO 如果下一个间隔为 0，则不预测
+                    power_on_disk_num = 0
+                    if (predict_temp[len(predict_temp) - 1] != 0):
+                        predictor = Predictor(config, predict_temp, self.raid_instant.num_disks)
+                        power_on_disk_num = predictor.get_power_on_disk_num()
+                    # 打印 predict_temp
+                    print('')
+                    print("预测数据:")
+                    print(predict_temp)
+
+                # 数据迁移模块的实例化
+                reorghandler = ReorgHandler(self.raid_instant, power_on_disk_num, hots, timestamp_start + self.time_interval * (i + 1))
+                # 打印 hots
+                reorghandler.print_hots(i + 1)
+                # 打印 block table
+                self.raid_instant.print_block_table(i + 1)
+
+                # 如果 power_on_disk_num 大于 0，则存在待启动磁盘，需要进行数据迁移
+                if (power_on_disk_num > 0):
+                    # TODO
+                    print('')
+                    print("当前活动磁盘数:", self.raid_instant.num_disks)
+                    print("待启动磁盘数:", power_on_disk_num)
+                    print("进行数据迁移...")
+                    reorghandler.es_algorithm_add()
+                # 如果 power_on_disk_num 等于 0，下一个时间间隔不需要启动磁盘进行数据迁移
+                elif (power_on_disk_num == 0):
+                    # TODO
+                    pass
+                # 如果 power_on_disk_num 小于 0，则需要关闭磁盘，需要进行数据迁移
+                # 要保证磁盘个数必须为 config 中的 num_disks 以上
+                else:
+                    # TODO
+                    print('')
+                    print("当前活动磁盘数:", self.raid_instant.num_disks)
+                    print("待关闭磁盘数:", abs(power_on_disk_num))
+                    print("进行数据迁移...")
+                    reorghandler.es_algorithm_del()
+
+            # TODO no migration algorithm
+            elif (self.mode == 'no migration algorithm'):
+                # TODO 不用算法，直接添加磁盘随机迁移
+
+                # TODO FOR DEBUG
+                if (i > 30):
+                    break
+
+                power_on_disk_num = 0
+                # 前 16 个时间间隔不需要预测
+                # 因为 ARMAX 模型至少需要 16 个数据
+                if (i > 15):
+                    # 对于每个 interval，每次 predictor 预测的 list 为 predicts 的截取
+                    predict_temp = predicts[(i - 16):(i + 1)]
+                    # predictor 工作负载预测得到待启动磁盘数
+                    # TODO 如果下一个间隔为 0，则不预测
+                    power_on_disk_num = 0
+                    if (predict_temp[len(predict_temp) - 1] != 0):
+                        predictor = Predictor(config, predict_temp, self.raid_instant.num_disks)
+                        power_on_disk_num = predictor.get_power_on_disk_num()
+                    # 打印 predict_temp
+                    print('')
+                    print("预测数据:")
+                    print(predict_temp)
+
+                # 随机迁移模块的实例化
+                migrationhandler = MigrationHandler(self.raid_instant, power_on_disk_num, timestamp_start + self.time_interval * (i + 1))
+
+                # 如果 power_on_disk_num 大于 0，则存在待启动磁盘，需要进行数据迁移
+                if (power_on_disk_num > 0):
+                    # TODO
+                    print('')
+                    print("当前活动磁盘数:", self.raid_instant.num_disks)
+                    print("待启动磁盘数:", power_on_disk_num)
+                    print("进行数据迁移...")
+                    migrationhandler.random_add()
+                    
+                # 如果 power_on_disk_num 等于 0，下一个时间间隔不需要启动磁盘进行数据迁移
+                elif (power_on_disk_num == 0):
+                    # TODO
+                    pass
+                # 如果 power_on_disk_num 小于 0，则需要关闭磁盘，需要进行数据迁移
+                # 要保证磁盘个数必须为 config 中的 num_disks 以上
+                else:
+                    # TODO
+                    print('')
+                    print("当前活动磁盘数:", self.raid_instant.num_disks)
+                    print("待关闭磁盘数:", abs(power_on_disk_num))
+                    print("进行数据迁移...")
+                    migrationhandler.random_del()
+            
+            # TODO no power control policy
+            elif (self.mode == 'no power control policy'):
+                # 每个时间间隔都要更新一次 hots
+                # 上一个时间间隔的 hots 都需要清空
+                io_collector.read_hots(timestamp_start, self.time_interval, i + 1, self.process_file)
+                hots = io_collector.get_hots()
+
+                # TODO FOR DEBUG
+                if (i > 30):
+                    break
+
+                power_on_disk_num = 0
+                # no power control policy
+                if (i > 15):
+                # TODO 根据什么进行增减磁盘操作
+                # TODO 根据每个磁盘的 count_IO 次数？
+                    # count_IOs = []
+                    # for d in range(self.num_disks):
+                    #     io_stats = self.raid_instant.disks[d].get_io_stats()
+                    #     count_IOs.append(io_stats[0])
+                    # # 计算极差
+                    # count_IOs.sort()
+                    # # 极差很小且 count_io 数很大，则新添加 n_step 个磁盘
+                    # if (abs(count_IOs[self.num_disks - 1] - count_IOs[0]) <= 1000) and (count_IOs[0] >= (reqs_num / 10)):
+                    #     power_on_disk_num = 0 + self.n_step
+                    # # 极差很大，则减少 n_step 个磁盘
+                    # if (abs(count_IOs[self.num_disks - 1] - count_IOs[0]) >= (reqs_num / 10)):
+                    #     power_on_disk_num = 0 - self.n_step
+
+                # TODO 根据每个磁盘的休眠段个数？
+                    for d in range(self.num_disks):
+                        status_stats = self.raid_instant.disks[d].get_status_stats()
+                        # 存在仍没有休眠过的磁盘，则新添加 n_step 个磁盘
+                        if (len(status_stats[2]) < 1):
+                            power_on_disk_num = 0 + self.n_step
+                            break
+                        # 存在休眠次数超过间隔数的 1/2 的磁盘，则减少 n_step 个磁盘
+                        if (len(status_stats[2]) >= (i / 2)):
+                            power_on_disk_num = 0 - self.n_step
+                            break
+                    
+
+                # 数据迁移模块的实例化
+                reorghandler = ReorgHandler(self.raid_instant, power_on_disk_num, hots, timestamp_start + self.time_interval * (i + 1))
+                # 打印 hots
+                reorghandler.print_hots(i + 1)
+                # 打印 block table
+                self.raid_instant.print_block_table(i + 1)
+
+                # 如果 power_on_disk_num 大于 0，则存在待启动磁盘，需要进行数据迁移
+                if (power_on_disk_num > 0):
+                    # TODO
+                    print('')
+                    print("当前活动磁盘数:", self.raid_instant.num_disks)
+                    print("待启动磁盘数:", power_on_disk_num)
+                    print("进行数据迁移...")
+                    reorghandler.es_algorithm_add()
+                # 如果 power_on_disk_num 等于 0，下一个时间间隔不需要启动磁盘进行数据迁移
+                elif (power_on_disk_num == 0):
+                    # TODO
+                    pass
+                # 如果 power_on_disk_num 小于 0，则需要关闭磁盘，需要进行数据迁移
+                # 要保证磁盘个数必须为 config 中的 num_disks 以上
+                else:
+                    # TODO
+                    print('')
+                    print("当前活动磁盘数:", self.raid_instant.num_disks)
+                    print("待关闭磁盘数:", abs(power_on_disk_num))
+                    print("进行数据迁移...")
+                    reorghandler.es_algorithm_del()
 
         # 关闭磁盘
         self.raid_instant.end_disks(timestamp_end, 0, self.max_disks)
@@ -247,7 +366,7 @@ class Controller:
                 # TODO 增加 timestamp 参数
                 self.raid_instant.single_io(r.timestamp, 'r' if (r.is_write == False) else 'w', r.disk_num, r.offset + i)
             
-        # TODO 间隔内所有的 reqs 发送完后循环检查每个磁盘是否休眠超时
+        # 间隔内所有的 reqs 发送完后循环检查每个磁盘是否休眠超时
         self.raid_instant.check_disk_status(timestamp_interval)
 
         eplased_time = self.raid_instant.get_elapsed()
