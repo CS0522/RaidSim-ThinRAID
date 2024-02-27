@@ -30,17 +30,10 @@ class Config:
         self.__max_disks = configs['max_disks']
         self.__block_size = configs['block_size']
         self.__chunk_size = configs['chunk_size']
-        self.__num_reqs = configs['num_reqs'] 
         self.__req_size = configs['req_size']
-        # 'rand' or 'seq'
-        self.__workload = configs['workload']
-        # 0.0 ~ 1.0
-        self.__write_frac = configs['write_frac']
-        self.__rand_range = configs['rand_range']
         self.__raid_level = configs['raid_level']
         # 'LS' or 'LA'
         self.__raid5_type = configs['raid5_type']
-        self.__timing = configs['timing']
         self.__solve = configs['solve']
         self.__print_physical = configs['print_physical']
         
@@ -119,29 +112,14 @@ class Config:
     def get_chunk_size(self):
         return self.__chunk_size
     
-    def get_num_reqs(self):
-        return self.__num_reqs
-    
     def get_req_size(self):
         return self.__req_size
-    
-    def get_workload(self):
-        return self.__workload
-    
-    def get_write_frac(self):
-        return self.__write_frac
-    
-    def get_rand_range(self):
-        return self.__rand_range
     
     def get_raid_level(self):
         return self.__raid_level
     
     def get_raid5_type(self):
         return self.__raid5_type
-    
-    def get_timing(self):
-        return self.__timing
     
     def get_solve(self):
         return self.__solve

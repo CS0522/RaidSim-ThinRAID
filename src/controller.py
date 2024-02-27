@@ -29,14 +29,9 @@ class Controller:
         self.max_disks = config.get_max_disks()
         self.block_size = config.get_block_size()
         self.chunk_size = config.get_chunk_size()
-        self.num_reqs = config.get_num_reqs()
         self.req_size = config.get_req_size()
-        self.workload = config.get_workload()
-        self.write_frac = config.get_write_frac()
-        self.rand_range = config.get_rand_range()
         self.raid_level = config.get_raid_level()
         self.raid5_type = config.get_raid5_type()
-        self.timing = config.get_timing()
         self.solve = config.get_solve()
 
         self.raw_file = config.get_raw_file()
@@ -317,17 +312,10 @@ class Controller:
     def check_args(self): 
         random.seed(self.seed)
 
-        # write requests' frac must be legal
-        assert(self.write_frac >= 0 and self.write_frac <= 1.0)
-
         # req size must be valid
         if (self.req_size % self.block_size != 0):
             Cerror(f'请求块大小 {self.req_size} 需为块大小 {self.block_size} 的倍数')
         self.req_size = self.req_size // self.block_size
-
-        # workload type must be valid
-        if (self.workload != 'rand' and self.workload != 'seq'):
-            Cerror(f'工作负载类型输入错误，必须是 \'rand\' 或 \'seq\'')
 
         # raid level only 5
         assert(self.raid_level == 5)
@@ -363,7 +351,7 @@ class Controller:
         for r in reqs:
             # 请求大小
             for i in range(r.size):
-                # TODO 增加 timestamp 参数
+                # 增加 timestamp 参数
                 self.raid_instant.single_io(r.timestamp, 'r' if (r.is_write == False) else 'w', r.disk_num, r.offset + i)
             
         # 间隔内所有的 reqs 发送完后循环检查每个磁盘是否休眠超时

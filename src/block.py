@@ -1,13 +1,16 @@
 '''
 Author: Chen Shi
 Date: 2023-12-07 17:08:59
-Description: 
+Description: Block class.
 '''
 
 
 # 用来放在 block table 中存储 block 的一些信息
-class Node:
+class Block:
     def __init__(self, curr_row, curr_col):
+        # data 标志位
+        # 0, 1
+        self.data = 0
         # 热度值
         self.hot = 0
         # 修改标志位
@@ -21,6 +24,9 @@ class Node:
         self.has_old = False
         # 如果重新映射，原先的 index
         self.old_index = {'row': -1, 'col': -1}
+
+    def set_data(self, new_val):
+        self.data = new_val
 
     def set_hot(self, new_val):
         self.hot = new_val

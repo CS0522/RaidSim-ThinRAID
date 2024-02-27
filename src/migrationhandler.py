@@ -6,7 +6,7 @@ Description: MigrationHandler class. Implement random migration between disks in
 
 
 import copy
-from src.node import Node
+from src.block import Block
 from src.raid import Raid
 
 class MigrationHandler:
@@ -36,8 +36,8 @@ class MigrationHandler:
         # block table 添加 k 列
         for r in range(self.raid_instant.blocks_per_disk):
             for i in range(self.power_on_disk_num):
-                new_node = Node(r, i + (self.curr_disk_num - self.power_on_disk_num))
-                self.raid_instant.block_table[r].append(new_node)
+                new_block = Block(r, i + (self.curr_disk_num - self.power_on_disk_num))
+                self.raid_instant.block_table[r].append(new_block)
         # 创建一个 list 记录当前每个新加的磁盘上的偏移位置
         # [0, 0, 0, ..., 0]
         power_on_disk_offset = []
@@ -83,15 +83,15 @@ class MigrationHandler:
         # 遍历新添加的磁盘上的数据块
         for row in range(self.raid_instant.blocks_per_disk):
             for col in range(self.curr_disk_num - self.power_on_disk_num, self.curr_disk_num):
-                node_temp = self.raid_instant.block_table[row][col]
+                block_temp = self.raid_instant.block_table[row][col]
                 # 判断是否是迁移数据块
-                if (node_temp.has_old == True):
+                if (block_temp.has_old == True):
                     # write req
-                    self.raid_instant.single_io(self.timestamp_interval, 'w', node_temp.old_index['col'], node_temp.old_index['row'])
+                    self.raid_instant.single_io(self.timestamp_interval, 'w', block_temp.old_index['col'], block_temp.old_index['row'])
                     # 修改原数据块
-                    self.raid_instant.block_table[node_temp.old_index['row']][node_temp.old_index['col']].set_modified(False)
-                    self.raid_instant.block_table[node_temp.old_index['row']][node_temp.old_index['col']].set_remap(False)
-                    self.raid_instant.block_table[node_temp.old_index['row']][node_temp.old_index['col']].set_remap_index(-1, -1)
+                    self.raid_instant.block_table[block_temp.old_index['row']][block_temp.old_index['col']].set_modified(False)
+                    self.raid_instant.block_table[block_temp.old_index['row']][block_temp.old_index['col']].set_remap(False)
+                    self.raid_instant.block_table[block_temp.old_index['row']][block_temp.old_index['col']].set_remap_index(-1, -1)
                 # 不是迁移数据块，而是新写入到新添加磁盘上的数据块
                 else:
                     pass

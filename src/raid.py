@@ -7,7 +7,7 @@ Description: Raid class
 
 from common.cerror import Cerror
 from src.disk import Disk
-from src.node import Node
+from src.block import Block
 from src.config import Config
 
 
@@ -30,7 +30,6 @@ class Raid:
         # raid level (only 5)
         self.raid_level = config.get_raid_level()
         
-        self.timing = config.get_timing()
         self.solve = config.get_solve()
         # raid-5 LS/LA
         self.raid5_type = config.get_raid5_type()
@@ -92,14 +91,14 @@ class Raid:
     '''
     def init_block_table(self):
         # 一个 disk 默认 100 个 track，每个 track 有 100 个 block
-        # row, 100 * 100 行
-        # TODO 需要修改
         for r in range(self.blocks_per_disk):
             b_list = []
             # col, num_disks 列
             for c in range(self.num_disks):
-                b_node = Node(r, c)
-                b_list.append(b_node)
+                b_block = Block(r, c)
+                # 初始 data 标志位置为 1
+                b_block.set_data(1)
+                b_list.append(b_block)
             # 把每行的 b_list 添加到 block table
             self.block_table.append(b_list)
             
@@ -124,14 +123,14 @@ class Raid:
                     break
                 write_row = []
                 for c in self.block_table[i]:
-                    node_info = ''
+                    block_info = ''
                     if (c.remap == True):
-                        node_info = str('([' + str(c.curr_index['row']) + ', ' + str(c.curr_index['col']) 
+                        block_info = str('([' + str(c.curr_index['row']) + ', ' + str(c.curr_index['col']) 
                         + '], [' + str(c.remap_index['row']) + ', ' + str(c.remap_index['col']) + '])  ')
                     else:
-                        node_info = str('([' + str(c.curr_index['row']) + ', ' + str(c.curr_index['col']) 
+                        block_info = str('([' + str(c.curr_index['row']) + ', ' + str(c.curr_index['col']) 
                         + '], False)  ')
-                    write_row.append(node_info)
+                    write_row.append(block_info)
                 write_row.append('\n')
                 res_file.writelines(write_row)
             res_file.writelines('\n')
@@ -274,16 +273,15 @@ class Raid:
     '''
     def enqueue(self, addr, size, is_write):
         # print logical operations
-        if not self.timing:
-            if self.solve:
-                if is_write:
-                    print(f'logical write addr: {addr} size: {size * self.block_size}')
-                else:
-                    print(f'logical read addr: {addr} size: {size * self.block_size}')
-                if not self.solve:
-                    print('logical read/write?')
+        if self.solve:
+            if is_write:
+                print(f'logical write addr: {addr} size: {size * self.block_size}')
             else:
-                print('physical operation?')
+                print(f'logical read addr: {addr} size: {size * self.block_size}')
+            if not self.solve:
+                print('logical read/write?')
+        else:
+            print('physical operation?')
 
         if self.raid_level == 5:
             # raid5 级别下处理 I/O 请求
@@ -327,15 +325,17 @@ class Raid:
                 print(f'重新映射: [{disk_index}, {offset}] -> [{remap_disk}, {remap_off}]')
         # write req
         if r_or_w == 'w':
+            # data 标志位置为 1
+            self.block_table[offset][disk_index].set_data(1)
             # 如果要写入的数据块是经过迁移的，修改 modified
             if (self.block_table[offset][disk_index].remap == True):
                 self.block_table[offset][disk_index].set_modified(True)
             if self.print_physical:
-                print(f'write [disk {disk_index}, offset {offset}] ')
+                print(f'write [disk {disk_index}, offset {offset}], {"succeeded" if (self.block_table[offset][disk_index].data == 1) else "failed"}')
         # read req
         elif r_or_w == 'r':
             if self.print_physical:
-                print(f'read [disk {remap_disk}, offset {remap_off}] ')
+                print(f'read [disk {remap_disk}, offset {remap_off}], {"succeeded" if (self.block_table[offset][disk_index].data == 1) else "failed"}')
         
         if new_line:
                 print('')
@@ -501,7 +501,7 @@ class Raid:
                 # for loop end
 
         # for all cases, print this for pretty-ness in mapping mode
-        if self.timing == False and self.print_physical:
+        if self.print_physical:
             print('')
 
 

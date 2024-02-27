@@ -336,7 +336,7 @@ return {*}
 
 # block_table = []
 
-# class Node:
+# class Block:
 #     timestamp = 100.0
 #     disk_num = 10
 #     is_write = False
@@ -346,8 +346,8 @@ return {*}
 # for i in range(10000):
 #     row = []
 #     for j in range(10):
-#         node_temp = Node()
-#         row.append(node_temp)
+#         block_temp = Block()
+#         row.append(block_temp)
 #     block_table.append(row)
 
 # print(block_table)
