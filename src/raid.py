@@ -4,15 +4,12 @@ Date: 2023-11-27 16:31:32
 Description: Raid class
 '''
 
-
 from common.cerror import Cerror
 from src.disk import Disk
 from src.block import Block
 from src.config import Config
-# from src.plot import Plot
 
-
-# 只模拟 raid5
+# 模拟 RAID 5
 class Raid:
     # constructor
     def __init__(self, config:Config, num_disks):
@@ -55,7 +52,6 @@ class Raid:
         # 记录各个时间间隔内处于活跃状态的磁盘个数
         self.active_disks_num_per_interval = []
         
-        # 只模拟 raid5
         if self.raid_level == 5:
             self.blocks_in_stripe = (self.num_disks - 1) * self.chunk_size
             self.parity_disk = -1
@@ -197,6 +193,7 @@ class Raid:
             for c in range(self.num_disks):
                 self.block_table[r][c].set_hot(0)
 
+
     '''
     name: add_disks
     msg: 添加磁盘。注意，添加磁盘前需要执行一些操作，在 ReorgHandler 中
@@ -220,7 +217,6 @@ class Raid:
         # 修改当前磁盘数量
         self.num_disks += add_disk_num
             
-
 
     '''
     name: del_disks
@@ -381,6 +377,7 @@ class Raid:
                 t_max = t
         return t_max
     
+
     '''
     name: single_io
     msg: 单个 I/O 请求发送到指定 disk 上
@@ -396,8 +393,6 @@ class Raid:
         remap_disk = disk_index
         remap_off = offset
         # 判断是否存在重新映射
-        # print("disk_index:", disk_index)
-        # print("offset:", offset)
         if (self.block_table[offset][disk_index].remap == True):
             # 需要重新映射到新的磁盘上
             remap_disk = self.block_table[offset][disk_index].remap_index['col']
@@ -426,6 +421,7 @@ class Raid:
             pass
         # I/O 请求发送到指定磁盘
         self.disks[remap_disk].enqueue(remap_off, timestamp)
+
 
     '''
     name: partial_write
@@ -485,6 +481,7 @@ class Raid:
             # self.single_io(timestamp, 'w', pdisk, offList[i], i == (len(offList) - 1))
             self.single_io(timestamp, 'w', pdisk, offList[i])
 
+
     '''
     name: mapping_raid5
     msg: 先定义一个函数，后面定义几个函数（功能基本相同）分别获取返回值；
@@ -537,9 +534,6 @@ class Raid:
         
         # assert(disk != pdisk)
         # 判断是否存在重新映射
-        # print('doff:', doff)
-        # print('disk:', disk)
-        # print('')
         if (self.block_table[doff][disk].remap == True):
             # 需要重新映射到新的磁盘上
             remap_disk = self.block_table[doff][disk].remap_index['col']
