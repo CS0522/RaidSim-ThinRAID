@@ -1,43 +1,68 @@
-# unit: ms; Byte
-seed: 0
-num_disks: 4
-max_disks: 10
-block_size: 4096
-chunk_size: 4096
-req_size: 4096
+seed:       0
+min_disks:  4
+max_disks:  8
+block_size: 512
+chunk_size: 512
+req_size:   512
 raid_level: 5
+
 # 'LS' or 'LA'
 raid5_type: 'LS'
-solve: True
-# 打印 read/write requests
-print_physical: True
+
+# 打印 io requests
+print_logical:  False
+print_physical: False
+print_stats:    True
 
 # Disk
-num_tracks: 100
-blocks_per_track: 100
-seek_time: 10
-xfer_time: 0.1
-queue_len: 8
-# 磁盘休眠超时
-# 与 time_interval 保持相同
-# sleep_timeout: 100
+num_tracks:         100
+blocks_per_track:   100
+seek_time:          10
+xfer_time:          0.1
+queue_len:          8
+# 磁盘休眠超时与 time_interval 保持相同
 
 # trace file path
-raw_file: "./trace/hm_1_min.csv"
-process_file: "./trace/hm_1_processed.csv"
-# process_file: "./trace/generated.csv"
+raw_file:   "./trace/prn_0.csv"
+# 是否已经处理过
+processed:  True
 
 # time interval for IO statistics and for disk sleep timeout
 time_interval: 5000000
 
-# predictor
-t_up: 2
-t_down: 1.5
-n_step: 2
-miu: 0.5
+# predictor: 
+# hm0:    200 ~ 300 需要调低
+# hm1:    5000 ~ 10000
+# mds0:   600 ~ 700 需要调低
+# mds1:   1000 ~ 1500 
+# prn0:   120 ~ 140 需要调高(130 ~ 160?)
+# proj0:  200 ~ 300 
+# proj3:  200 ~ 300
+
+# hm0:    2 ~ 3
+# hm1:    1 ~ 2
+# mds0:   0.7 ~ 1
+# mds1:   1 ~ 2
+# prn0:   3.5 ~ 4
+# proj0:  2 ~ 3
+# proj3:  1 ~ 2
+
+# hm0:    0.5 ~ 0.7   
+# hm1:    1 ~ 2   
+# mds0:   0.5 ~ 0.8 
+# mds1:   2 ~ 2.5  
+# prn0:   0.6 ~ 1.2 
+# proj0:  1.5 ~ 2 (RR: 1.2 ~ 1.5)
+# proj3:  0.5 ~ 0.7
+t_up:     1.2
+t_down:   0.6
+n_step:   2
 
 # RAID mode
-# conventional, thinraid, no migration algorithm, no power control policy
-mode: 'no migration algorithm'
+# conventional, thinraid, random, no_power_control_policy
+mode:   'thinraid'
+
+# DEBUG
+debug:  False
 
 ### DEFAULT CONFIGS ###

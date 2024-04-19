@@ -13,15 +13,16 @@ from src.config import Config
 config_file = './config.yaml'
 
 def main():
-    save_stdout = sys.stdout
-    sys.stdout = open("./output/res.txt", "w", encoding='utf-8')
-    with open("./output/block_table.txt", "w") as block_table_txt:
-        block_table_txt.truncate(0)
-    with open("./output/hots.txt", "w") as hots_txt:
-        hots_txt.truncate(0)
-
     # 创建一个 Config 实例，读取 config.yaml 并保存配置参数，传入 Controller 中 
     config = Config(config_file)
+
+    print('')
+    print(f'Currently running: {config.get_trace_name()} trace in {config.get_mode()} mode')
+    print('')
+
+    # 写入文件
+    save_stdout = sys.stdout
+    sys.stdout = open(f'./output/3. optimized/o_{config.get_trace_name()}_{config.get_mode()}.txt', "w", encoding = 'utf-8')
     
     controller = Controller(config)
     
@@ -29,5 +30,9 @@ def main():
 
     return
 
+
 if __name__ == "__main__":
     main()
+    print('')
+    print("Completed")
+    print('')

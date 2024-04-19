@@ -9,28 +9,32 @@ from common.cerror import Cerror
 from src.disk import Disk
 from src.block import Block
 from src.config import Config
+# from src.plot import Plot
 
 
 # 只模拟 raid5
 class Raid:
     # constructor
-    def __init__(self, config:Config):
+    def __init__(self, config:Config, num_disks):
         self.print_physical = config.get_print_physcial()
         # block size
         self.block_size = config.get_block_size()
         # chunk size
         self.chunk_size = config.get_chunk_size()
         if (self.chunk_size % self.block_size) != 0:
-            Cerror(f'chunk 大小({self.chunk_size})必须是 block size ({self.block_size})的倍数: ({self.chunk_size % self.block_size})')
+            Cerror(f'chunk size({self.chunk_size}) 必须是 block size({self.block_size}) 的倍数: ({self.chunk_size % self.block_size})')
         self.chunk_size = self.chunk_size // self.block_size
-        # 当前磁盘个数（初始磁盘个数）
-        self.num_disks = config.get_num_disks()
+        # 最小磁盘个数
+        self.min_disks = config.get_min_disks()
         # 最大磁盘个数
         self.max_disks = config.get_max_disks()
+        # 当前磁盘个数（建立 raid 时的磁盘个数）
+        self.num_disks = num_disks
         # raid level (only 5)
         self.raid_level = config.get_raid_level()
         
-        self.solve = config.get_solve()
+        self.print_logical = config.get_print_logical()
+        self.print_stats = config.get_print_stats()
         # raid-5 LS/LA
         self.raid5_type = config.get_raid5_type()
 
@@ -38,9 +42,18 @@ class Raid:
         self.blocks_per_track = config.get_blocks_per_track()
         self.blocks_per_disk = self.num_tracks * self.blocks_per_track
 
+        self.mode = config.get_mode()
+
         # Raid 中维护一张动态二维数组的表，用来存储数据块的一些信息
         # 存储数据块的热度、是否修改标志 等
         self.block_table = []
+
+        # 记录 RAID 休眠总时长
+        self.raid_sleep_time_total = []
+        # 记录 RAID 空闲总时长
+        self.raid_idle_time_total = []
+        # 记录各个时间间隔内处于活跃状态的磁盘个数
+        self.active_disks_num_per_interval = []
         
         # 只模拟 raid5
         if self.raid_level == 5:
@@ -67,7 +80,11 @@ class Raid:
     '''
     def init_disks(self, timestamp, start_disk_index, init_disks_num):
         for i in range(start_disk_index, init_disks_num + start_disk_index):
-            self.disks[i].init_disk(timestamp)
+            # True 表示该磁盘在 raid 初始化时被启用
+            self.disks[i].init_disk(timestamp, True)
+        for j in range(init_disks_num, self.max_disks):
+            # False 表示该磁盘在 raid 初始化时未被启用
+            self.disks[j].init_disk(timestamp, False)
 
     '''
     name: end_disks
@@ -93,11 +110,13 @@ class Raid:
         # 一个 disk 默认 100 个 track，每个 track 有 100 个 block
         for r in range(self.blocks_per_disk):
             b_list = []
-            # col, num_disks 列
-            for c in range(self.num_disks):
+            # col, max_disks 列
+            for c in range(self.max_disks):
                 b_block = Block(r, c)
                 # 初始 data 标志位置为 1
-                b_block.set_data(1)
+                # 如果为 thinraid 模式，用最小数量建立 RAID，剩余磁盘无数据
+                if (c < self.num_disks): 
+                    b_block.set_data(1)
                 b_list.append(b_block)
             # 把每行的 b_list 添加到 block table
             self.block_table.append(b_list)
@@ -119,8 +138,8 @@ class Raid:
             res_file.writelines(title)
             # 只打印前 100 行
             for i in range(len(self.block_table)):
-                if (i >= 1000):
-                    break
+                # if (i >= 1000):
+                #     break
                 write_row = []
                 for c in self.block_table[i]:
                     block_info = ''
@@ -139,6 +158,46 @@ class Raid:
 
 
     '''
+    name: print_hots
+    msg: 打印 hots
+    param {*} self
+    return {*}
+    '''
+    def print_hots(self, interval_num):
+        with open("./output/hots.txt", 'a+') as res_file:
+            title = []
+            for i in range(self.num_disks):
+                title.append('Disk' + str(i) + '  ')
+            res_file.writelines("Interval " + str(interval_num) + ":\n")
+            title.append('\n')
+            res_file.writelines(title)
+            # 只打印前 100 行
+            for i in range(len(self.raid_instant.block_table)):
+                # if (i >= 1000):
+                #     break
+                write_row = []
+                for c in self.raid_instant.block_table[i]:
+                    block_info = str('([' + str(c.curr_index['row']) + ', ' + str(c.curr_index['col']) + '], ' + str(c.hot) + ')  ')
+                    write_row.append(block_info)
+                write_row.append('\n')
+                res_file.writelines(write_row)
+            res_file.writelines('\n')
+            res_file.writelines('==========')
+            res_file.writelines('\n')
+
+
+    '''
+    name: clear_hots
+    msg: 清空上个时间间隔内的数据块热度
+    param {*} self
+    return {*}
+    '''
+    def clear_hots(self):
+        for r in range(self.blocks_per_disk):
+            for c in range(self.num_disks):
+                self.block_table[r][c].set_hot(0)
+
+    '''
     name: add_disks
     msg: 添加磁盘。注意，添加磁盘前需要执行一些操作，在 ReorgHandler 中
     param {*} self
@@ -149,15 +208,13 @@ class Raid:
     def add_disks(self, add_disk_num, timestamp):
         if (add_disk_num == 0):
             return
-        # for i in range(add_disk_num):
-        #     self.disks.append(Disk())
-        # 初始化刚开始未启动的磁盘
-        self.init_disks(timestamp, self.num_disks, add_disk_num)
-        # 设置这些磁盘的 latest_req_timestamp
-        # for d in range(self.num_disks, self.num_disks + add_disk_num):
-        #     self.disks[d].update_latest_req_timestamp(timestamp)
-        # print
+        # block_table 新添加磁盘上的数据块重置
+        for r in range(self.blocks_per_disk):
+            for c in range(self.num_disks, self.num_disks + add_disk_num):
+                self.block_table[r][c] = Block(r, c)
+        # wake up disks
         for i in range(self.num_disks, self.num_disks + add_disk_num):
+            self.disks[i].wake_up_disk(timestamp)
             print(f'启动磁盘{i}')
         print('')
         # 修改当前磁盘数量
@@ -177,17 +234,15 @@ class Raid:
             return
         if (del_disk_num >= self.num_disks):
             Cerror('the number of disks to be deleted needs to be smaller than current disks')
-        # valid
-        # for i in range(del_disk_num):
-        #     # 在此之前需要数据迁移
-        #     # 在 ReorgHandler 中进行
-        #     self.disks.pop()
-        # 关闭磁盘
-        # self.end_disks(timestamp, self.num_disks - del_disk_num, del_disk_num)
-        for d in range(self.num_disks - del_disk_num, self.num_disks):
-            self.disks[d].hibernate_disk(timestamp)
-        # print
+        # block_table 新删除的磁盘上数据块重置
+        for r in range(self.blocks_per_disk):
+            for c in range(self.num_disks - del_disk_num, self.num_disks):
+                self.block_table[r][c] = Block(r, c)
+        # shut down disks
         for i in range(self.num_disks - del_disk_num, self.num_disks):
+            # 避免重复关闭 2 次
+            if (self.disks[i].active == True):
+                self.disks[i].hibernate_disk(timestamp)
             print(f'关闭磁盘{i}')
         print('')
         # 修改当前磁盘数量
@@ -204,33 +259,43 @@ class Raid:
     '''
     def get_disk_stats(self, total_time, timestamp_interval):
         # 获取磁盘 IO 信息统计
-        print("当前时间戳:", timestamp_interval)
-        print("当前启用磁盘数:", self.num_disks)
-        print('')
-        print("磁盘 I/O 信息统计:")
-        for i in range(self.max_disks):
-            io_stats = self.disks[i].get_io_stats()
-            util_ratio = (100.0 * float(io_stats[4]) / total_time) if total_time > 0.0 else 0.0
-            print(f'磁盘{i}- 占用率: {util_ratio:3.2f}  I/Os: {io_stats[0]:5d} (顺序次数: {io_stats[1]} 同一个磁道: {io_stats[2]} 随机次数: {io_stats[3]})')
+        if (self.print_stats == True):
+            print("当前时间戳:", timestamp_interval)
+            print("当前启用磁盘数:", self.num_disks)
+            print('')
+            print("磁盘 I/O 信息统计:")
+            for i in range(self.max_disks):
+                io_stats = self.disks[i].get_io_stats()
+                util_ratio = (100.0 * float(io_stats[4]) / total_time) if total_time > 0.0 else 0.0
+                print(f'磁盘{i}- 占用率: {util_ratio:6.2f}  I/Os: {io_stats[0]:9d} (顺序次数: {io_stats[1]:9d} 同一个磁道: {io_stats[2]:9d} 随机次数: {io_stats[3]:9d})')
 
-        print('')
-        print("磁盘状态信息统计:")
+            print('')
+            print("磁盘状态信息统计:")
 
+        # 记录时间间隔内活跃磁盘个数
+        self.active_disks_num_per_interval.append(0)
         # 获取磁盘休眠时间统计
         for i in range(self.max_disks):
             status_stats = self.disks[i].get_status_stats()
-            print(f'磁盘{i}- 当前状态: {"活跃" if (status_stats[0] == True) else "休眠"}')
-            print("休眠总时长:", status_stats[1] if ((status_stats[0] == True) or (self.disks[i].sleep_timestamp == 0)) else (status_stats[1] + timestamp_interval - self.disks[i].sleep_timestamp))
-            # print("休眠总时长:", status_stats[1])
-            print("休眠时间点:", status_stats[2])
-            print("休眠段时长:", status_stats[3])
-            print("磁盘关闭次数:", len(status_stats[2]))
-            print("活跃总时长:", status_stats[4] if (status_stats[0] == False) else (status_stats[4] + timestamp_interval - self.disks[i].active_timestamp))
-            # print("活跃总时长:", status_stats[4])
-            print("活跃时间点:", status_stats[5])
-            print("活跃段时长:", status_stats[6])
-            print("磁盘启动次数:", len(status_stats[5]))
-            print('')
+            if (self.print_stats == True):
+                print(f'磁盘{i}- 当前状态: {"活跃" if (status_stats[0] == True) else "休眠"}')
+            # record
+            if (status_stats[0] == True):
+                self.active_disks_num_per_interval[-1] += 1
+            
+            if (self.print_stats == True):
+                print("休眠总时长:", status_stats[1] if ((status_stats[0] == True) or (self.disks[i].sleep_timestamp == 0)) else (status_stats[1] + timestamp_interval - self.disks[i].sleep_timestamp))
+                # print("休眠总时长:", status_stats[1])
+                print("休眠时间点:", status_stats[2])
+                print("休眠段时长:", status_stats[3])
+                print("关闭次数:", len(status_stats[2]))
+                print("活跃总时长:", status_stats[4] if (status_stats[0] == False) else (status_stats[4] + timestamp_interval - self.disks[i].active_timestamp))
+                # print("活跃总时长:", status_stats[4])
+                print("活跃时间点:", status_stats[5])
+                print("活跃段时长:", status_stats[6])
+                print("启动次数:", len(status_stats[5]))
+                # print("空闲总时长:", status_stats[7])
+                print('')
 
     
     # reqs 都发送完毕后最终磁盘信息统计
@@ -242,7 +307,7 @@ class Raid:
         for i in range(self.max_disks):
             io_stats = self.disks[i].get_io_stats()
             util_ratio = (100.0 * float(io_stats[4]) / total_time) if total_time > 0.0 else 0.0
-            print(f'磁盘{i}- 占用率: {util_ratio:3.2f}  I/Os: {io_stats[0]:5d} (顺序次数: {io_stats[1]} 同一个磁道: {io_stats[2]} 随机次数: {io_stats[3]})')
+            print(f'磁盘{i}- 占用率: {util_ratio:6.2f}  I/Os: {io_stats[0]:9d} (顺序次数: {io_stats[1]:9d} 同一个磁道: {io_stats[2]:9d} 随机次数: {io_stats[3]:9d})')
 
         print('')
         print("磁盘状态信息统计:")
@@ -252,40 +317,54 @@ class Raid:
             status_stats = self.disks[i].get_status_stats()
             print(f'磁盘{i}- 当前状态: {"活跃" if (status_stats[0] == True) else "休眠"}')
             print("休眠总时长:", status_stats[1])
+            # record the sleep time of this disk
+            self.raid_sleep_time_total.append(status_stats[1])
             print("休眠时间点:", status_stats[2])
             print("休眠段时长:", status_stats[3])
-            print("磁盘关闭次数:", len(status_stats[2]))
+            print("关闭次数:", len(status_stats[2]))
             print("活跃总时长:", status_stats[4])
             print("活跃时间点:", status_stats[5])
             print("活跃段时长:", status_stats[6])
-            print("磁盘启动次数:", len(status_stats[5]))
+            print("启动次数:", len(status_stats[5]))
+            print("空闲总时长:", status_stats[7])
+            # record the idle time of this disk
+            self.raid_idle_time_total.append(status_stats[7])
             print('')
+    
+        print("各个时间间隔内活跃磁盘个数:", len(self.active_disks_num_per_interval))
+        print(self.active_disks_num_per_interval)
+        print('')
+        print("RAID 所有磁盘休眠总时长:", sum(self.raid_sleep_time_total))
+        print(self.raid_sleep_time_total)
+        print('')
+        print("RAID 所有磁盘空闲总时长:", sum(self.raid_idle_time_total))
+        print(self.raid_idle_time_total)
+        print('')
 
 
     '''
     name: enqueue
     msg: io requests enqueue. 暂时未用
     param {*} self
+    param {*} timestamp: 时间戳
     param {*} addr: 逻辑地址
     param {*} size: 大小
     param {*} is_write: 是否写请求
     return {*}
     '''
-    def enqueue(self, addr, size, is_write):
+    def enqueue(self, timestamp, addr, size, is_write):
         # print logical operations
-        if self.solve:
+        if self.print_logical:
             if is_write:
                 print(f'logical write addr: {addr} size: {size * self.block_size}')
             else:
                 print(f'logical read addr: {addr} size: {size * self.block_size}')
-            if not self.solve:
-                print('logical read/write?')
-        else:
-            print('physical operation?')
+        # else:
+        #     print('physical operation?')
 
         if self.raid_level == 5:
             # raid5 级别下处理 I/O 请求
-            self.enqueue_raid5(addr, size, is_write)
+            self.enqueue_raid5(timestamp, addr, size, is_write)
 
 
     '''
@@ -317,12 +396,18 @@ class Raid:
         remap_disk = disk_index
         remap_off = offset
         # 判断是否存在重新映射
+        # print("disk_index:", disk_index)
+        # print("offset:", offset)
         if (self.block_table[offset][disk_index].remap == True):
             # 需要重新映射到新的磁盘上
             remap_disk = self.block_table[offset][disk_index].remap_index['col']
             remap_off = self.block_table[offset][disk_index].remap_index['row']
             if self.print_physical:
                 print(f'重新映射: [{disk_index}, {offset}] -> [{remap_disk}, {remap_off}]')
+            # remap 块热度增加
+            self.block_table[remap_off][remap_disk].hot += 1
+        # 原始块热度增加
+        self.block_table[offset][disk_index].hot += 1
         # write req
         if r_or_w == 'w':
             # data 标志位置为 1
@@ -338,7 +423,7 @@ class Raid:
                 print(f'read [disk {remap_disk}, offset {remap_off}], {"succeeded" if (self.block_table[offset][disk_index].data == 1) else "failed"}')
         
         if new_line:
-                print('')
+            pass
         # I/O 请求发送到指定磁盘
         self.disks[remap_disk].enqueue(remap_off, timestamp)
 
@@ -346,21 +431,20 @@ class Raid:
     name: partial_write
     msg: 以一个条带中的多个块进行写
     param {*} self
+    param {*} timestamp: 时间戳
     param {*} stripe: 第几个条带
     param {*} begin: 开始的 blocks 号
     param {*} end: 结束的 blocks 号
     param {*} block_map: 传入 block_mapping_raid5() 函数的生成器
     param {*} parity_map: 传入 parity_mapping_raid5() 函数的生成器
-    param {*} timestamp: 时间戳
     return {*}
     '''
-    def partial_write(self, stripe, begin, end, block_map, parity_map, timestamp):
+    def partial_write(self, timestamp, stripe, begin, end, block_map, parity_map):
         # 写请求的块数
         num_writes = end - begin
         # 这里 parity_map 会传入一个函数生成器（理解为一个指向函数的对象）
         pdisk = parity_map(stripe)
 
-        # TODO 搞清楚啥意思
         if (num_writes + 1) <= (self.blocks_in_stripe - num_writes):
             offList = []
             for voff in range(begin, end):
@@ -371,7 +455,8 @@ class Raid:
                     offList.append(off)
             for i in range(len(offList)):
                 # read - 'r', write - 'w'
-                self.single_io(timestamp, 'r', pdisk, offList[i], i == (len(offList) - 1))
+                # self.single_io(timestamp, 'r', pdisk, offList[i], i == (len(offList) - 1))
+                self.single_io(timestamp, 'r', pdisk, offList[i])
 
         else:
             stripe_begin = stripe * self.blocks_in_stripe
@@ -379,11 +464,13 @@ class Raid:
             for voff in range(stripe_begin, begin):
                 (disk, off) = block_map(voff)
                 # read - 'r', write - 'w'
-                self.single_io(timestamp, 'r', disk, off, (voff == (begin - 1)) and (end == stripe_end))
+                # self.single_io(timestamp, 'r', disk, off, (voff == (begin - 1)) and (end == stripe_end))
+                self.single_io(timestamp, 'r', disk, off)
             for voff in range(end, stripe_end):
                 (disk, off) = block_map(voff)
                 # read - 'r', write - 'w'
-                self.single_io(timestamp, 'r', disk, off, voff == (stripe_end - 1))
+                # self.single_io(timestamp, 'r', disk, off, voff == (stripe_end - 1))
+                self.single_io(timestamp, 'r', disk, off)
 
         # writes
         offList = []
@@ -395,7 +482,8 @@ class Raid:
                 offList.append(off)
         for i in range(len(offList)):
             # read - 'r', write - 'w'
-            self.single_io(timestamp, 'w', pdisk, offList[i], i == (len(offList) - 1))
+            # self.single_io(timestamp, 'w', pdisk, offList[i], i == (len(offList) - 1))
+            self.single_io(timestamp, 'w', pdisk, offList[i])
 
     '''
     name: mapping_raid5
@@ -403,31 +491,55 @@ class Raid:
          一个请求到来，对该请求的块号进行 mapping；
          私有
     param {*} self
-    param {*} block_num: ？
+    param {*} block_num
     return {*} disk
     return {*} pdisk
     return {*} doff
     '''
     def __mapping_raid5(self, block_num):
-        # TODO 搞清楚表示的啥意思
-        cnum = block_num // self.chunk_size
-        coff = block_num % self.chunk_size
-        ddsk = cnum // (self.num_disks - 1)
-        doff = (ddsk * self.chunk_size) + coff
-        disk = cnum % (self.num_disks - 1)
-        col = (ddsk % self.num_disks)
-        pdisk = (self.num_disks - 1) - col
+        if (self.mode == 'conventional'):
+            cnum = block_num // self.chunk_size
+            coff = block_num % self.chunk_size
+            ddsk = cnum // (self.max_disks - 1)
+            doff = (ddsk * self.chunk_size) + coff
+            disk = cnum % (self.max_disks - 1)
+            col = (ddsk % self.max_disks)
+            pdisk = (self.max_disks - 1) - col
+
+        elif (self.mode == 'thinraid'):
+            cnum = block_num // self.chunk_size
+            coff = block_num % self.chunk_size
+            ddsk = cnum // (self.min_disks - 1)
+            doff = (ddsk * self.chunk_size) + coff
+            disk = cnum % (self.min_disks - 1)
+            col = (ddsk % self.min_disks)
+            pdisk = (self.min_disks - 1) - col
+
+        elif (self.mode == 'random'):
+            cnum = block_num // self.chunk_size
+            coff = block_num % self.chunk_size
+            ddsk = cnum // (self.num_disks - 1)
+            doff = (ddsk * self.chunk_size) + coff
+            disk = cnum % (self.num_disks - 1)
+            col = (ddsk % self.num_disks)
+            pdisk = (self.num_disks - 1) - col
 
         if (self.raid5_type == 'LS'):
-            disk = (disk - col) % self.num_disks
+            if (self.mode == 'conventional'):
+                disk = (disk - col) % self.max_disks
+            else:
+                disk = (disk - col) % self.min_disks
         elif (self.raid5_type == 'LA'):
             if disk >= pdisk:
                 disk += 1
         else:
             Cerror('Error: no such RAID layout')
         
-        assert(disk != pdisk)
+        # assert(disk != pdisk)
         # 判断是否存在重新映射
+        # print('doff:', doff)
+        # print('disk:', disk)
+        # print('')
         if (self.block_table[doff][disk].remap == True):
             # 需要重新映射到新的磁盘上
             remap_disk = self.block_table[doff][disk].remap_index['col']
@@ -443,7 +555,6 @@ class Raid:
     
 
     def parity_mapping_raid5(self, p_num):
-        # TODO 这是什么意思
         (disk, pdisk, doff) = self.__mapping_raid5(p_num * self.blocks_in_stripe)
         return pdisk
     
@@ -451,12 +562,13 @@ class Raid:
     '''
     name: enqueue_raid5
     msg: raid5 级别的 I/O 请求处理
-    param {*} addr: 地址
-    param {*} size: 大小
+    param {*} timestamp: 请求时间戳
+    param {*} addr: 请求偏移地址
+    param {*} size: 请求大小
     param {*} is_write: 是否写请求
     return {*}
     '''
-    def enqueue_raid5(self, addr, size, is_write, timestamp):
+    def enqueue_raid5(self, timestamp, addr, size, is_write):
         if self.raid_level == 5:
             # 函数生成器，两个对象分别指向两个函数
             (block_map, parity_map) = (self.block_mapping_raid5, self.parity_mapping_raid5)
@@ -494,7 +606,7 @@ class Raid:
                     end_block = end_of_curr_stripe
 
                 # partial write
-                self.partial_write(curr_stripe, start_block, end_block, block_map, parity_map)
+                self.partial_write(timestamp, curr_stripe, start_block, end_block, block_map, parity_map)
 
                 remain_blocks -= (end_block - start_block)
                 start_block = end_block
@@ -518,5 +630,3 @@ class Raid:
             if (timestamp_interval - self.disks[d].latest_req_timestamp >= self.disks[d].sleep_timeout) and (self.disks[d].active == True):
                 # 休眠磁盘
                 self.disks[d].hibernate_disk(timestamp_interval)
-
-# end Raid class

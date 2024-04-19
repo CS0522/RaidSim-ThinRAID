@@ -4,117 +4,37 @@ Date: 2023-12-06 00:51:22
 Description: ReorgHandler class. Implement ThinRAID's ES Algorithm
 '''
 
-
 import copy
 from src.block import Block
 from src.raid import Raid
 
 class ReorgHandler:
-    def __init__(self, raid:Raid, power_on_disk_num, hots, timestamp_interval):
+    def __init__(self, raid:Raid, adjust_disk_num, timestamp_interval):
         # a RAID instant
         # 直接对 raid 实例进行修改
         self.raid_instant = raid
         # the number of disks to be power on
-        self.power_on_disk_num = abs(power_on_disk_num)
+        self.adjust_disk_num = abs(adjust_disk_num)
         # the number of current disks
         self.curr_disk_num = raid.num_disks
-        # hots 为具有两列的二维 list
-        # [DiskNumber, Offset]
-        self.hots = hots
-        # 当前时间戳（时间间隔）
+        # 当前时间间隔的时间戳
         self.timestamp_interval = timestamp_interval
 
-        # 清空上个时间间隔的数据块热度
-        self.clear_hot_blocks()
-        # 设置数据块热度
-        self.set_hot_blocks()
         # 计算阈值 T
         self.threshold = self.cal_threshold()
-        # Chunk Popularity Table
-        # 深拷贝，cpt 的修改不影响 block table
-        self.cpt = copy.deepcopy(self.raid_instant.block_table)
         # Rank Array
-        # [0~10, 10~20, 20~30, 30~40, 40~50, 50~60, 60~70, 70~80, 80~90, 90~100]
         # self.ra = [[], [], [], [], [], [], [], [], [], []]
         # self.ra_values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.ra = []
         self.ra_values = []
         # TODO rank array 的分级数量要适当修改
-        self.ra_num = 10
+        self.ra_num = 1000
         for i in range(self.ra_num):
             ls = []
-            self.ra.append([])
-        for i in range(self.ra_num):
+            self.ra.append(ls)
             self.ra_values.append(0)
         # blocks queue that are prepared to migrate
         self.blocks_to_move = []
-
-
-    '''
-    name: clear_hot_blocks
-    msg: 清空数据块的热度值
-    param {*} self
-    return {*}
-    '''
-    def clear_hot_blocks(self):
-        for r in self.raid_instant.block_table:
-            for c in r:
-                c.hot = 0
-
-    
-    '''
-    name: set_hot_blocks
-    msg: 设置数据块的热度值
-    param {*} self
-    return {*}
-    '''
-    def set_hot_blocks(self):
-        for r in self.hots:
-            # r[0] 是请求的磁盘，r[1]是该磁盘上的偏移地址
-            # r[1] 作为 row，r[0] 作为 col
-            # 该位置的数据块热度值 + 1
-            self.raid_instant.block_table[r[1]][r[0]].hot += 1
-
-
-    '''
-    name: print_hots
-    msg: 打印 hots
-    param {*} self
-    return {*}
-    '''
-    def print_hots(self, interval_num):
-        with open("./output/hots.txt", 'a+') as res_file:
-            title = []
-            for i in range(self.curr_disk_num):
-                title.append('Disk' + str(i) + '  ')
-            res_file.writelines("Interval " + str(interval_num) + ":\n")
-            title.append('\n')
-            res_file.writelines(title)
-            # 只打印前 100 行
-            for i in range(len(self.raid_instant.block_table)):
-                if (i >= 1000):
-                    break
-                write_row = []
-                for c in self.raid_instant.block_table[i]:
-                    block_info = str('([' + str(c.curr_index['row']) + ', ' + str(c.curr_index['col']) + '], ' + str(c.hot) + ')  ')
-                    write_row.append(block_info)
-                write_row.append('\n')
-                res_file.writelines(write_row)
-            res_file.writelines('\n')
-            res_file.writelines('==========')
-            res_file.writelines('\n')
-
-
-    '''
-    name: update_hot_blocks
-    msg: 更新磁盘块的热度值
-    param {*} self
-    param {*} new_hots: new hots list
-    return {*}
-    '''
-    def update_hot_blocks(self, new_hots):
-        self.hots = new_hots
-        self.set_hot_blocks()
 
 
     '''
@@ -125,7 +45,7 @@ class ReorgHandler:
     '''
     def cal_threshold(self):
         # 计算公式
-        # T = ( sum{Dj} / n + k ) * k
+        # T = ( sum{ Dj } / n + k ) * k
         disk_hots = []
         # init
         for i in range(self.curr_disk_num):
@@ -137,13 +57,13 @@ class ReorgHandler:
             for col in range(self.curr_disk_num):
                 disk_hots[col] += row[col].hot
         # disk_hots 得到每个磁盘的热度
-        # sum{Dj}
+        # sum{ Dj }
         disk_hots_sum = 0
         for i in range(self.curr_disk_num):
             disk_hots_sum += disk_hots[i]
         # calculate T
-        # T = ( sum{Dj} / n + k ) * k
-        threshold = (disk_hots_sum * self.power_on_disk_num) / (self.curr_disk_num + self.power_on_disk_num)
+        # T = ( sum{ Dj } / n + k ) * k
+        threshold = (disk_hots_sum * self.adjust_disk_num) / (self.curr_disk_num + self.adjust_disk_num)
 
         return threshold
     
@@ -155,75 +75,74 @@ class ReorgHandler:
     return {*}
     '''
     def es_algorithm_add(self):
-        # 1. 查找 CPT 表，找到条带中热度最高的 k 个块
-        # reverse = True，从大到小降序
-        # row[0]~row[k - 1] 即为热度最高的 k 个块
-        for row in self.cpt:
-            row.sort(reverse = True, key = lambda x:x.hot)
+        # 1. 查找 Block Table，找到每个条带中热度最高的 k 个块
         # 2. 以热度为标准进行分级，归到相应 Rank Array 中
-        for row in self.cpt:
-            # 这里 power_on_disk_num 可能会超过 curr_disk_num 大小导致越界
-            for col in range(self.power_on_disk_num if (self.power_on_disk_num <= self.curr_disk_num) else self.curr_disk_num):
+        # reverse = True，从大到小降序
+        # row[0] ~ row[k - 1] 即为热度最高的 k 个块
+        for row in self.raid_instant.block_table:
+            row_sorted = sorted(row, key = lambda x:x.hot, reverse = True)
+            # 这里 adjust_disk_num 可能会超过 curr_disk_num 大小导致越界
+            for col in range(self.adjust_disk_num if (self.adjust_disk_num <= self.curr_disk_num) else self.curr_disk_num):
                 # 如果条带的数据块 hot 值都是 0，不迁移这些数据块
-                if (row[col].hot == 0):
+                if (row_sorted[col].hot == 0):
                     continue
-                block_temp = row[col]
-                self.ra[block_temp.hot // (self.ra_num)].append(block_temp)
-                self.ra_values[block_temp.hot // (self.ra_num)] += block_temp.hot
+                block_temp1 = row_sorted[col]
+                self.ra[block_temp1.hot // (self.ra_num)].append(block_temp1)
+                self.ra_values[block_temp1.hot // (self.ra_num)] += block_temp1.hot
         # 3. 从高阶到低阶查找块，直到达到阈值 T
         block_hots_sum = 0
         curr_rank = self.ra_num - 1
+        # 达到阈值标志
+        found = False
         while (curr_rank >= 0 and block_hots_sum <= self.threshold):
-            for block_temp in self.ra[curr_rank]:
+            for block_temp2 in self.ra[curr_rank]:
                 # 如果当前热度总和小于阈值
-                if ((block_hots_sum + block_temp.hot) <= self.threshold):
-                    block_hots_sum += block_temp.hot
-                    self.blocks_to_move.append(block_temp)
+                if ((block_hots_sum + block_temp2.hot) <= self.threshold):
+                    block_hots_sum += block_temp2.hot
+                    self.blocks_to_move.append(block_temp2)
                 # 如果当前热度总和大于阈值
                 else:
+                    found = True
                     break
+            if (found == True):
+                break
             # 一个 rank 的 block 都加入完后，查找下一阶
             curr_rank -= 1
         # 当前启动磁盘个数增加
-        # self.curr_disk_num += self.power_on_disk_num
-        self.raid_instant.add_disks(self.power_on_disk_num, self.timestamp_interval)
+        # self.curr_disk_num += self.adjust_disk_num
+        self.raid_instant.add_disks(self.adjust_disk_num, self.timestamp_interval)
         self.curr_disk_num = self.raid_instant.num_disks
         # 4. 迁移数据块
-        # block table 添加 k 列
-        # for row in self.raid_instant.block_table:
-        for r in range(self.raid_instant.blocks_per_disk):
-            for i in range(self.power_on_disk_num):
-                new_block = Block(r, i + (self.curr_disk_num - self.power_on_disk_num))
-                self.raid_instant.block_table[r].append(new_block)
         # 创建一个 list 记录当前每个新加的磁盘上的偏移位置
-        # [0, 0, 0, ..., 0]
         power_on_disk_offset = []
-        for i in range(self.power_on_disk_num):
+        for j in range(self.adjust_disk_num):
             power_on_disk_offset.append(0)
-        for block_temp in self.blocks_to_move:
-            # randint() 左右都闭区间
-            # col = random.randint(self.curr_disk_num - self.power_on_disk_num, self.curr_disk_num - 1)
+        # 用于顺序标记应放置到哪个新添加的磁盘
+        block_count = 0
+        for block_temp3 in self.blocks_to_move:
             # 按以下式子放到某个新添加的磁盘上
-            col = (self.curr_disk_num - self.power_on_disk_num) + (block_temp.curr_index['col'] % self.power_on_disk_num)
-            row = copy.deepcopy(power_on_disk_offset[col - (self.curr_disk_num - self.power_on_disk_num)]) 
-            power_on_disk_offset[col - (self.curr_disk_num - self.power_on_disk_num)] += 1 
+            col = (self.curr_disk_num - self.adjust_disk_num) + (block_count % self.adjust_disk_num)
+            row = power_on_disk_offset[block_count % self.adjust_disk_num]
+            power_on_disk_offset[block_count % self.adjust_disk_num] += 1 
+            block_count += 1
             # 迁移数据块需要读写
-            self.raid_instant.single_io(self.timestamp_interval, 'r', block_temp.curr_index['col'], block_temp.curr_index['row'])
             # 这里 block 的 data 标志位已置为 1
             self.raid_instant.single_io(self.timestamp_interval, 'w', col, row)
+            # 深拷贝一份新的避免引用
+            block_temp3_copy = copy.deepcopy(block_temp3)
             # 被迁移数据块的 remap 属性修改为 True，修改 remap index
-            self.raid_instant.block_table[block_temp.curr_index['row']][block_temp.curr_index['col']].set_remap(True)
-            self.raid_instant.block_table[block_temp.curr_index['row']][block_temp.curr_index['col']].set_remap_index(row, col)
+            self.raid_instant.block_table[block_temp3.curr_index['row']][block_temp3.curr_index['col']].set_remap(True)
+            self.raid_instant.block_table[block_temp3.curr_index['row']][block_temp3.curr_index['col']].set_remap_index(row, col)
             # 迁移到新磁盘上的数据块设置原数据块 old index
-            block_temp.set_old_index(block_temp.curr_index['row'], block_temp.curr_index['col'])
-            block_temp.has_old = True
-            block_temp.set_curr_index(row, col)
-            self.raid_instant.block_table[row][col] = block_temp
+            block_temp3_copy.set_old_index(block_temp3.curr_index['row'], block_temp3.curr_index['col'])
+            block_temp3_copy.has_old = True
+            block_temp3_copy.set_curr_index(row, col)
+            self.raid_instant.block_table[row][col] = block_temp3_copy
             # 这里确保 data = 1
             self.raid_instant.block_table[row][col].set_data(1)
                                                         
-        # Raid 类处理 io 请求的函数中判断是否需要重新映射
-        # Raid 类处理 io 请求的函数中，写请求写到 remap 的 block，修改 modified 属性为 True
+        # Raid 处理 io 请求的函数中判断是否需要重新映射
+        # Raid 处理 io 请求的函数中，写请求写到 remap 的 block，修改其 modified 属性为 True
         
 
     '''
@@ -245,7 +164,7 @@ class ReorgHandler:
     def es_algorithm_del(self):
         # 遍历新添加的磁盘上的数据块
         for row in range(self.raid_instant.blocks_per_disk):
-            for col in range(self.curr_disk_num - self.power_on_disk_num, self.curr_disk_num):
+            for col in range(self.curr_disk_num - self.adjust_disk_num, self.curr_disk_num):
                 block_temp = self.raid_instant.block_table[row][col]
                 # data = 0，没有数据
                 if (block_temp.data == 0):
@@ -268,8 +187,16 @@ class ReorgHandler:
                 else:
                     pass
                     # trace 工作负载中没有对新添加的磁盘进行写入和读取，所以新添加的磁盘上都是经过迁移的数据块
+                # 清理 block_temp，新添加的磁盘上数据块恢复为初始
+                block_temp.set_data(0)
+                block_temp.set_hot(0)
+                block_temp.set_modified(False)
+                block_temp.set_remap(False)
+                block_temp.set_remap_index(-1, -1)
+                block_temp.set_has_old(False)
+                block_temp.set_old_index(-1, -1)
         # 处理完成后，清空 blocks_to_move 列表
         self.blocks_to_move.clear()
         # 删除磁盘
-        self.raid_instant.del_disks(self.power_on_disk_num, self.timestamp_interval)
+        self.raid_instant.del_disks(self.adjust_disk_num, self.timestamp_interval)
         self.curr_disk_num = self.raid_instant.num_disks

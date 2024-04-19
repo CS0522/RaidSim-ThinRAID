@@ -25,6 +25,13 @@ class Block:
         # 如果重新映射，原先的 index
         self.old_index = {'row': -1, 'col': -1}
 
+    # 重写比较函数，lt 是计算 < 符号
+    def __lt__(self, other):
+        if (self.hot < other.hot):
+            return True
+        else:
+            return False
+
     def set_data(self, new_val):
         self.data = new_val
 

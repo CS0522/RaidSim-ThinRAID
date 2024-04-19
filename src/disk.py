@@ -8,7 +8,7 @@ from src.config import Config
 
 class Disk:
     # 寻道时间，数据传输时间，调度队列长度
-    # TODO 这里 seek time 被设置为固定的
+    # 这里 seek time 被设置为固定值
     def __init__(self, config:Config):
         # 单位为 ms
         # 这几个可能用不上
@@ -22,19 +22,20 @@ class Disk:
         # queue
         self.queue = []
 
-        # TODO 磁盘休眠相关
+        # 磁盘休眠相关变量
         # 活跃（包含空闲状态，活跃指磁盘在运行） -> 休眠
         # 磁盘当前空闲时长（无 IO 请求进入）：相对
         # 用于判断是否休眠超时、可以进入休眠状态
-        self.idle_time = 0
-        # 磁盘空闲总时长（不包含休眠）：相对
+        # self.idle_time = 0
+        # 磁盘空闲总时长（包含休眠）：相对
+        # 即没有请求到达的总时长
         self.idle_time_total = 0
         # 磁盘休眠总时长：相对
         self.sleep_time_total = 0
         # 磁盘活跃总时长：相对
         self.active_time_total = 0
         # 磁盘进入空闲状态时间点：绝对
-        self.idle_time_points = []
+        # self.idle_time_points = []
         # 磁盘进入休眠状态时间点：绝对
         self.sleep_time_points = []
         # 磁盘进入活跃状态时间点：绝对
@@ -55,8 +56,6 @@ class Disk:
         self.sleep_timeout = config.get_time_interval()
         # 是否活跃磁盘
         self.active = False
-        # 是否启用过
-        self.spin_up_once = False
 
         # trace 文件开始时间点
         self.timestamp_start = 0
@@ -81,23 +80,28 @@ class Disk:
         # 活跃状态
         # 休眠总时长，时间点，段时长
         # 活跃总时长，时间点，段时长
-        return self.active, self.sleep_time_total, self.sleep_time_points, self.sleep_time_periods, self.active_time_total, self.active_time_points, self.active_time_periods
+        # 空闲总时长
+        return self.active, self.sleep_time_total, self.sleep_time_points, self.sleep_time_periods, self.active_time_total, self.active_time_points, self.active_time_periods, self.idle_time_total
 
     '''
     name: init_disk
     msg: 初始化磁盘操作
     param {*} self
     param {*} timestamp: 时间戳
+    param {*} spin_up: 该磁盘在 raid 初始化时是否被启用
     return {*}
     '''
-    def init_disk(self, timestamp):
-        # timestamp 是起始时间点
-        self.timestamp_start = timestamp
-        self.active_time_points.append(timestamp)
-        self.active_timestamp = timestamp
-        self.active = True
-        # 标记为启用过
-        self.spin_up_once = True
+    def init_disk(self, timestamp, spin_up):
+        if (spin_up == True):
+            # timestamp 是起始时间点
+            self.timestamp_start = timestamp
+            self.active_time_points.append(timestamp)
+            self.active_timestamp = timestamp
+            self.active = True
+        else:
+            self.timestamp_start = timestamp
+            self.sleep_timestamp = timestamp
+            self.active = False
 
 
     '''
@@ -108,8 +112,9 @@ class Disk:
     return {*}
     '''
     def end_disk(self, timestamp):
-        if (self.spin_up_once == False):
-            return
+        # 增加空闲时长
+        if (timestamp - self.latest_req_timestamp > 100000):
+            self.idle_time_total += timestamp - (self.latest_req_timestamp + 100000 if (self.latest_req_timestamp != 0) else self.timestamp_start)
         # 处于活跃状态
         if (self.active == True):
             self.hibernate_disk(timestamp)
@@ -129,18 +134,20 @@ class Disk:
     return {*}
     '''
     def wake_up_disk(self, timestamp):
+        # 修改活跃状态
+        self.active = True
         # 记录进入活跃状态时间点
         self.active_time_points.append(timestamp)
         self.active_timestamp = timestamp
         # 本次休眠时长
-        # 如果是 trace 文件刚开始，那么 latest_req_timestamp == 0
+        # 如果 trace 开始后没有请求到达，那么 latest_req_timestamp == 0
         curr_sleep_time = timestamp - self.sleep_timestamp
         # 磁盘休眠总时长增加
         self.sleep_time_total += curr_sleep_time
         # 添加磁盘休眠时间段
         self.sleep_time_periods.append(curr_sleep_time)
         # 记录最新到来的 req
-        self.latest_req_timestamp = timestamp
+        # self.latest_req_timestamp = timestamp
 
 
     '''
@@ -159,7 +166,7 @@ class Disk:
         # 如果这个时间戳超过休眠超时
         if (timestamp - self.latest_req_timestamp > self.sleep_timeout):
             timestamp = self.latest_req_timestamp + self.sleep_timeout
-            # 如果是 trace 文件刚开始，那么 latest_req_timestamp == 0
+            # 如果从 trace 开始后没有请求到达，那么 latest_req_timestamp == 0
             if (self.latest_req_timestamp == 0):
                 timestamp += self.timestamp_start
         self.sleep_timestamp = timestamp
@@ -170,9 +177,6 @@ class Disk:
         self.active_time_total += curr_active_time
         # 添加磁盘活跃时间段
         self.active_time_periods.append(curr_active_time)
-        # 当前空闲时长
-        self.idle_time_total += self.idle_time
-        self.idle_time = 0
 
 
     def update_latest_req_timestamp(self, timestamp):
@@ -180,9 +184,13 @@ class Disk:
 
 
     # I/O requests arrive
-    # TODO 添加休眠、活跃时间统计
     # timestamp 是某个 req 的时间戳
     def enqueue(self, addr, timestamp):
+        # 增加空闲时长
+        # 如果磁盘从 trace 开始都没有请求进入直到 timestamp 时间点
+        if (timestamp - self.latest_req_timestamp > 100000):
+            self.idle_time_total += timestamp - ((self.latest_req_timestamp + 100000) if (self.latest_req_timestamp != 0) else self.timestamp_start)
+
         # 如果是休眠状态，唤醒磁盘
         if (self.active == False):
             self.active = True
