@@ -13,7 +13,7 @@ from src.config import Config
 from src.iocollector import IOCollector
 from src.predictor import Predictor
 from src.reorghandler import ReorgHandler
-from randomhandler import RandomHandler
+from src.randomhandler import RandomHandler
 
 class Controller:
     '''

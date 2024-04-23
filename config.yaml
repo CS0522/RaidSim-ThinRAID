@@ -23,7 +23,7 @@ queue_len:          8
 # 磁盘休眠超时与 time_interval 保持相同
 
 # trace file path
-raw_file:   "./trace/prn_0.csv"
+raw_file:   "./trace/mds_1.csv"
 # 是否已经处理过
 processed:  True
 
@@ -52,7 +52,7 @@ time_interval: 5000000
 # mds0:   0.5 ~ 0.8 
 # mds1:   2 ~ 2.5  
 # prn0:   0.6 ~ 1.2 
-# proj0:  1.5 ~ 2 (RR: 1.2 ~ 1.5)
+# proj0:  1.5 ~ 2 (Random: 1.2 ~ 1.5)
 # proj3:  0.5 ~ 0.7
 t_up:     1.2
 t_down:   0.6

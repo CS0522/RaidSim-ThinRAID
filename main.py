@@ -22,7 +22,7 @@ def main():
 
     # 写入文件
     save_stdout = sys.stdout
-    sys.stdout = open(f'./output/3. optimized/o_{config.get_trace_name()}_{config.get_mode()}.txt', "w", encoding = 'utf-8')
+    sys.stdout = open(f'./output/3. optimized/z_{config.get_trace_name()}_{config.get_mode()}.txt', "w", encoding = 'utf-8')
     
     controller = Controller(config)
     

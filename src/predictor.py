@@ -4,7 +4,7 @@ Date: 2023-12-04 00:37:08
 Description: Predictor class
 '''
 
-from src.armax import armax_func
+from src.arima import arima_model
 from src.config import Config
 
 class Predictor:
@@ -54,7 +54,7 @@ class Predictor:
     '''
     def get_predicted_arrival_rate(self):
         # 预测下一个时间间隔的 lambda
-        self.lamda = armax_func(self.predicts, 1)
+        self.lamda = arima_model(self.predicts)
         if (self.print_stats == True):
             print('')
             print("预测模型结果:", self.lamda)

@@ -289,7 +289,8 @@ if __name__ == "__main__":
     # algorithm_add(threshold)
     # print_block_table("all")
     
-    str1 = './trace/hm_1.csv'
-    str2 = '/'.join([str1.split('/')[0], str1.split('/')[1], 
-                     '.'.join([str1.split('/')[2].split('.')[0] + '_processed', str1.split('/')[2].split('.')[1]])])
-    print(str2)
+    # str1 = './trace/hm_1.csv'
+    # str2 = '/'.join([str1.split('/')[0], str1.split('/')[1], 
+    #                  '.'.join([str1.split('/')[2].split('.')[0] + '_processed', str1.split('/')[2].split('.')[1]])])
+    # print(str2)
+    pass
