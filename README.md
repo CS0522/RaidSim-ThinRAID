@@ -4,29 +4,13 @@
  * () @Description: README of this project
 -->
 
-## RaidSim-thinraid Project
+## RaidSim-ThinRAID Project
 
 通过 Python 实现一个粗略的 RAID 模拟器并实现固定条带扩展、数据迁移算法以及功耗控制策略。写的很粗略，算是一个小练手叭。
 
 ### 实现思路
 
-本 RAID 磁盘阵列模拟器主要包括 Block 类、
-Disk 类、RAID 类、Config 类、IOReq 类、
-IOCollector 类、Predictor 类、ReOrgHandler 类、
-Controller 类等，每个类用于模拟 RAID 磁盘阵列的一部分，
-最后由 Controller 类整合到一起，
-模拟完整的基于数据迁移的绿色节能解决方案。
-该 RAID 模拟器的思路是是以每个 I/O 请求进行循环，
-循环前通过 IOCollector 实例获得工作负载 trace 文件的预处理数据，
-每个循环中执行分发读取写入请求，
-RAID 实例将请求分发到各个磁盘并记录数据块热度值，
-并判断时间戳是否达到时间间隔，
-当达到时间间隔时，
-控制器记录相关数据，
-建立模型预测下一时间间隔工作负载、
-执行功耗控制策略、
-根据策略执行数据迁移算法等一系列操作，
-循环结束后获得每个磁盘的统计数据并打印。
+本 RAID 磁盘阵列模拟器主要包括 Block 类、Disk 类、RAID 类、Config 类、IOReq 类、IOCollector 类、Predictor 类、ReOrgHandler 类、Controller 类等，每个类用于模拟 RAID 磁盘阵列的一部分，最后由 Controller 类整合到一起，模拟完整的基于数据迁移的绿色节能解决方案。该 RAID 模拟器的思路是是以每个 I/O 请求进行循环，循环前通过 IOCollector 实例获得工作负载 trace 文件的预处理数据，每个循环中执行分发读取写入请求，RAID 实例将请求分发到各个磁盘并记录数据块热度值，并判断时间戳是否达到时间间隔，当达到时间间隔时，控制器记录相关数据，建立模型预测下一时间间隔工作负载、执行功耗控制策略、根据策略执行数据迁移算法等一系列操作，循环结束后获得每个磁盘的统计数据并打印。
 
 
 ---
